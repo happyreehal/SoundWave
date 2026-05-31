@@ -8,9 +8,11 @@ const API = {
   ITUNES_BASE: "https://itunes.apple.com",
 
   // Detect if Node server is running (port 3000)
-  SERVER: window.location.port === "3000"
-    ? `http://localhost:3000`
-    : null,
+  SERVER: window.location.hostname === "happyreehal.github.io"
+    ? "https://soundwave-backend-ivory.vercel.app"
+    : window.location.port === "3000"
+      ? "http://localhost:3000"
+      : null,
 
   // Fallback direct Audius nodes (used only when no server)
   AUDIUS_NODES: [
