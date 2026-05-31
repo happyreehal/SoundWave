@@ -99,7 +99,7 @@ const API = {
   async getSaavnFromServer(song) {
     try {
       const res = await fetch(
-        `${this.SERVER}/api/saavn/stream` +
+        `${this.SERVER}/api/saavn` +
         `?title=${encodeURIComponent(song.title)}` +
         `&artist=${encodeURIComponent(song.artist)}`,
         { signal: AbortSignal.timeout(12000) }
@@ -122,7 +122,7 @@ const API = {
   async getAudiusFromServer(song) {
     try {
       const res = await fetch(
-        `${this.SERVER}/api/audius/stream` +
+        `${this.SERVER}/api/audius` +
         `?title=${encodeURIComponent(song.title)}` +
         `&artist=${encodeURIComponent(song.artist)}`,
         { signal: AbortSignal.timeout(10000) }
