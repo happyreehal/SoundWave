@@ -1,0 +1,127 @@
+/* ============================================================
+   ANIMATIONS — All keyframes & transitions
+============================================================ */
+
+/* Card hover lift */
+.card { transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.2s, border-color 0.2s; }
+
+/* Pulse on play */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.06); }
+}
+
+.play-btn.playing { animation: pulse 1.5s ease infinite; }
+
+/* Album art rotate (playing) */
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.art-spin { animation: spinSlow 12s linear infinite; }
+.art-spin.paused { animation-play-state: paused; }
+
+/* Gradient background shift */
+@keyframes gradShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.grad-anim {
+  background-size: 300% 300%;
+  animation: gradShift 8s ease infinite;
+}
+
+/* Visualizer bars */
+@keyframes visBounce {
+  from { transform: scaleY(0.3); }
+  to   { transform: scaleY(1); }
+}
+
+.vis-bar {
+  transform-origin: bottom;
+  animation: visBounce 0.6s ease-in-out infinite alternate;
+}
+
+/* Float up (party mode) */
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: translateY(-100vh) rotate(720deg) scale(0.5); }
+}
+
+/* Ripple */
+@keyframes ripple {
+  to { transform: scale(3); opacity: 0; }
+}
+
+.ripple-effect {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  animation: ripple 0.5s var(--ease) forwards;
+}
+
+/* Slide in from right */
+@keyframes slideRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* Slide in from bottom */
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Stagger children */
+.stagger-item {
+  animation: slideUp 0.3s var(--ease) both;
+}
+
+.stagger-item:nth-child(1)  { animation-delay: 0.05s; }
+.stagger-item:nth-child(2)  { animation-delay: 0.10s; }
+.stagger-item:nth-child(3)  { animation-delay: 0.15s; }
+.stagger-item:nth-child(4)  { animation-delay: 0.20s; }
+.stagger-item:nth-child(5)  { animation-delay: 0.25s; }
+.stagger-item:nth-child(6)  { animation-delay: 0.30s; }
+.stagger-item:nth-child(7)  { animation-delay: 0.35s; }
+.stagger-item:nth-child(8)  { animation-delay: 0.40s; }
+
+/* Tooltip */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%; transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border: 1px solid rgba(255,255,255,0.08);
+  z-index: 999;
+}
+
+[data-tip]:hover::after { opacity: 1; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  #sidebar-right { display: none; }
+  #app { grid-template-columns: var(--sidebar-w) 1fr; }
+}
+
+@media (max-width: 750px) {
+  #app { grid-template-columns: 1fr; }
+  #sidebar-left { display: none; }
+  #player-bar { padding: 0 10px; }
+  .now-playing { width: auto; flex: 1; }
+  .player-center { display: none; }
+}

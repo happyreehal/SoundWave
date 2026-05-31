@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SoundWave Pro</title>
+
+  <!-- ✅ Favicon fix — Emoji as favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>"/>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/base.css"/>
+  <link rel="stylesheet" href="css/layout.css"/>
+  <link rel="stylesheet" href="css/player.css"/>
+  <link rel="stylesheet" href="css/components.css"/>
+  <link rel="stylesheet" href="css/animations.css"/>
+</head>
+<body>
+
+<!-- =============================================
+     TOAST CONTAINER
+============================================= -->
+<div id="toast-container"></div>
+
+<!-- =============================================
+     CONTEXT MENU
+============================================= -->
+<div id="context-menu" class="hidden">
+  <div class="ctx-item" data-action="play">
+    <i class="fas fa-play"></i> Play Now
+  </div>
+  <div class="ctx-item" data-action="queue">
+    <i class="fas fa-list-ul"></i> Add to Queue
+  </div>
+  <div class="ctx-item" data-action="like">
+    <i class="fas fa-heart"></i> Like Song
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="share">
+    <i class="fas fa-share-alt"></i> Share
+  </div>
+  <div class="ctx-item" data-action="itunes">
+    <i class="fab fa-apple"></i> Open in iTunes
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" data-action="remove">
+    <i class="fas fa-trash"></i> Remove from Queue
+  </div>
+</div>
+
+<!-- =============================================
+     FULLSCREEN PLAYER
+============================================= -->
+<div id="fullscreen-player">
+  <div class="fs-bg"></div>
+  <div class="fs-blur-art"></div>
+  <button class="fs-close" onclick="UI.closeFullscreen()">
+    <i class="fas fa-chevron-down"></i>
+  </button>
+  <div class="fs-content">
+    <div class="fs-art">
+      <div style="width:100%;height:100%;background:var(--bg-elevated);
+                  display:flex;align-items:center;
+                  justify-content:center;font-size:80px;">
+        🎵
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div class="fs-title" style="font-size:22px;font-weight:900;margin-bottom:6px;">
+        No song playing
+      </div>
+      <div class="fs-artist" style="font-size:14px;color:var(--text-secondary);">
+        —
+      </div>
+    </div>
+    <div class="progress-row" style="width:100%;padding:0 10px;">
+      <span class="time-lbl current">0:00</span>
+      <div class="progress-track" onclick="Player.seek(event)" style="flex:1;">
+        <div class="progress-fill" style="width:0%;">
+          <div class="progress-thumb"></div>
+        </div>
+        <div class="progress-tooltip">0:00</div>
+      </div>
+      <span class="time-lbl total right">0:00</span>
+    </div>
+    <div class="ctrl-row">
+      <button class="ctrl-btn" id="fs-shuffle" onclick="Player.toggleShuffle()" data-tip="Shuffle">
+        <i class="fas fa-random"></i>
+      </button>
+      <button class="ctrl-btn" onclick="Player.prev()" data-tip="Previous">
+        <i class="fas fa-step-backward"></i>
+      </button>
+      <button class="play-btn" onclick="Player.togglePlay()">
+        <i class="fas fa-play"></i>
+      </button>
+      <button class="ctrl-btn" onclick="Player.next()" data-tip="Next">
+        <i class="fas fa-step-forward"></i>
+      </button>
+      <button class="ctrl-btn" id="fs-repeat" onclick="Player.toggleRepeat()" data-tip="Repeat">
+        <i class="fas fa-redo"></i>
+      </button>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like">
+        <i class="far fa-heart"></i>
+      </button>
+      <button class="np-btn" onclick="UI.switchRightPanel('lyrics')" data-tip="Lyrics">
+        <i class="fas fa-align-left"></i>
+      </button>
+      <button class="np-btn" onclick="openModal('modal-eq')" data-tip="Equalizer">
+        <i class="fas fa-sliders-h"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================================
+     MODAL: EQUALIZER
+============================================= -->
+<div class="modal-overlay" id="modal-eq">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">🎛️ Equalizer</h3>
+      <button class="modal-close" onclick="closeModal('modal-eq')">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="eq-presets">
+      <button class="eq-preset active" onclick="EQ.applyPreset('flat',this)">Flat</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('bass',this)">Bass Boost</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('treble',this)">Treble</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('vocal',this)">Vocal</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('rock',this)">Rock</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('jazz',this)">Jazz</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('pop',this)">Pop</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('electronic',this)">Electronic</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('classical',this)">Classical</button>
+      <button class="eq-preset" onclick="EQ.applyPreset('lounge',this)">Lounge</button>
+    </div>
+    <div class="eq-bands" id="eq-grid"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button onclick="closeModal('modal-eq')"
+              style="flex:1;padding:12px;border-radius:var(--r-full);
+                     background:var(--accent);color:#000;
+                     font-weight:700;font-size:14px;cursor:pointer;
+                     border:none;">
+        Apply
+      </button>
+      <button onclick="EQ.reset()"
+              style="flex:1;padding:12px;border-radius:var(--r-full);
+                     background:rgba(255,255,255,0.08);color:#fff;
+                     font-weight:700;font-size:14px;cursor:pointer;
+                     border:none;">
+        Reset
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================================
+     MODAL: SLEEP TIMER (FIXED - No Template Literals)
+============================================= -->
+<div class="modal-overlay" id="modal-sleep">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">😴 Sleep Timer</h3>
+      <button class="modal-close" onclick="closeModal('modal-sleep')">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+      Music stops after selected time.
+    </p>
+
+    <div class="sleep-grid">
+
+      <div class="sleep-opt" onclick="SleepTimer.set(5, this)">
+        <div class="sleep-num">5</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(10, this)">
+        <div class="sleep-num">10</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(15, this)">
+        <div class="sleep-num">15</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(20, this)">
+        <div class="sleep-num">20</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(30, this)">
+        <div class="sleep-num">30</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(45, this)">
+        <div class="sleep-num">45</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(60, this)">
+        <div class="sleep-num">60</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(90, this)">
+        <div class="sleep-num">90</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+      <div class="sleep-opt" onclick="SleepTimer.set(120, this)">
+        <div class="sleep-num">120</div>
+        <div class="sleep-label">min</div>
+      </div>
+
+    </div>
+
+    <div id="sleep-countdown"
+         style="display:none;text-align:center;padding:16px;
+                background:rgba(29,185,84,0.08);
+                border:1px solid rgba(29,185,84,0.2);
+                border-radius:var(--r-lg);margin-top:14px;">
+      <div id="sleep-time-display"
+           style="font-size:36px;font-weight:900;
+                  color:var(--accent);
+                  font-variant-numeric:tabular-nums;">
+        00:00
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+        Time remaining
+      </div>
+      <button onclick="SleepTimer.cancel()"
+              style="margin-top:12px;padding:8px 20px;
+                     border-radius:var(--r-full);
+                     background:rgba(239,68,68,0.12);
+                     color:#ef4444;font-weight:700;
+                     font-size:13px;
+                     border:1px solid rgba(239,68,68,0.25);
+                     cursor:pointer;">
+        Cancel Timer
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- =============================================
+     APP LAYOUT
+============================================= -->
+<div id="app">
+
+  <!-- =========== LEFT SIDEBAR =========== -->
+  <aside id="sidebar-left">
+
+    <!-- Logo -->
+    <div class="logo-area">
+      <div class="logo-icon">🎵</div>
+      <div class="logo-text">Sound<span class="accent">Wave</span></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-page="home">
+        <i class="fas fa-home nav-icon"></i>
+        <span>Home</span>
+      </div>
+      <div class="nav-item" data-page="search">
+        <i class="fas fa-search nav-icon"></i>
+        <span>Search</span>
+      </div>
+      <div class="nav-item" data-page="library">
+        <i class="fas fa-book nav-icon"></i>
+        <span>Your Library</span>
+      </div>
+    </nav>
+
+    <!-- Library List -->
+    <div class="sidebar-library">
+      <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">
+        <div class="spinner" style="margin:0 auto 12px;"></div>
+        Loading...
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- =========== MAIN CONTENT =========== -->
+  <main id="main-content">
+
+    <!-- Top Bar -->
+    <div id="topbar">
+      <div class="topbar-nav">
+        <button class="topbar-nav-btn" id="btn-back" disabled>
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <button class="topbar-nav-btn" id="btn-fwd" disabled>
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <i class="fas fa-search search-icon-left"></i>
+        <input type="text"
+               id="search-input"
+               placeholder="Search songs, artists, albums..."/>
+        <span class="search-clear" style="display:none;">
+          <i class="fas fa-times"></i>
+        </span>
+      </div>
+
+      <!-- Right Buttons -->
+      <div class="topbar-right">
+        <button class="topbar-icon-btn"
+                onclick="openModal('modal-eq')"
+                data-tip="Equalizer">
+          <i class="fas fa-sliders-h"></i>
+        </button>
+        <button class="topbar-icon-btn"
+                onclick="openModal('modal-sleep')"
+                data-tip="Sleep Timer">
+          <i class="fas fa-moon"></i>
+        </button>
+        <button class="topbar-icon-btn"
+                onclick="UI.openFullscreen()"
+                data-tip="Fullscreen Player">
+          <i class="fas fa-expand"></i>
+        </button>
+        <button class="topbar-icon-btn" data-tip="Notifications">
+          <i class="fas fa-bell"></i>
+          <div class="notif-dot"></div>
+        </button>
+        <div class="user-avatar"
+             onclick="UI.showToast('SoundWave Pro','fas fa-user','blue')">
+          AR
+        </div>
+      </div>
+    </div>
+
+    <!-- Pages -->
+    <div id="content-area">
+
+      <!-- HOME PAGE -->
+      <div class="page active" id="page-home">
+        <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+          <div class="spinner"
+               style="margin:0 auto 16px;width:36px;height:36px;
+                      border-width:3px;">
+          </div>
+          <p style="font-size:14px;">Loading SoundWave Pro...</p>
+        </div>
+      </div>
+
+      <!-- SEARCH PAGE -->
+      <div class="page" id="page-search">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Browse Categories</div>
+          </div>
+        </div>
+        <div id="search-categories"></div>
+        <div id="search-results" style="display:none;"></div>
+      </div>
+
+      <!-- LIBRARY PAGE -->
+      <div class="page" id="page-library">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Your Library</div>
+            <div class="section-sub">Songs you have liked and playlists</div>
+          </div>
+        </div>
+        <div class="no-results">
+          <i class="fas fa-heart"></i>
+          <h3>Your library is empty</h3>
+          <p>Like songs to add them here</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- =========== RIGHT SIDEBAR =========== -->
+  <aside id="sidebar-right">
+
+    <!-- Tabs -->
+    <div class="right-tabs">
+      <div class="right-tab active" data-panel="queue">Queue</div>
+      <div class="right-tab" data-panel="lyrics">Lyrics</div>
+    </div>
+
+    <!-- Queue Panel -->
+    <div class="right-panel active" id="panel-queue">
+      <div class="queue-header">
+        <span class="queue-title">Queue</span>
+        <button class="queue-clear"
+                onclick="State.queue=[];
+                         State.queueIndex=-1;
+                         UI.renderQueue();
+                         UI.showToast('Queue cleared','fas fa-trash','red')">
+          Clear
+        </button>
+      </div>
+      <div class="queue-scroll">
+        <div style="text-align:center;padding:40px 16px;color:var(--text-muted);">
+          <i class="fas fa-list"
+             style="font-size:28px;margin-bottom:12px;display:block;">
+          </i>
+          Play a song to fill queue
+        </div>
+      </div>
+    </div>
+
+    <!-- Lyrics Panel -->
+    <div class="right-panel" id="panel-lyrics">
+      <div class="lyrics-scroll">
+        <div class="lyrics-song-meta">
+          <h4 id="lyrics-title">No song playing</h4>
+          <p id="lyrics-artist">—</p>
+        </div>
+        <div id="lyrics-lines">
+          <div style="text-align:center;padding:20px;color:var(--text-muted);">
+            Play a song to see lyrics
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- =========== PLAYER BAR =========== -->
+  <div id="player-bar">
+
+    <!-- Now Playing Info -->
+    <div class="now-playing">
+      <div class="now-playing-art" onclick="UI.openFullscreen()">
+        <div class="art-placeholder">🎵</div>
+      </div>
+      <div class="np-text">
+        <div class="np-title">Select a song</div>
+        <div class="np-artist" style="color:var(--text-secondary);">—</div>
+      </div>
+      <div class="np-actions">
+        <button class="np-btn like-btn"
+                onclick="Player.toggleLike()"
+                data-tip="Like">
+          <i class="far fa-heart"></i>
+        </button>
+        <button class="np-btn"
+                onclick="UI.switchRightPanel('queue')"
+                data-tip="Queue">
+          <i class="fas fa-list-ul"></i>
+        </button>
+        <!-- Mini Visualizer -->
+        <div class="mini-visualizer"
+             style="display:none;align-items:flex-end;
+                    gap:2px;height:16px;margin-left:4px;">
+          <div class="bar" style="height:40%;animation-delay:0.0s;"></div>
+          <div class="bar" style="height:80%;animation-delay:0.2s;"></div>
+          <div class="bar" style="height:60%;animation-delay:0.1s;"></div>
+          <div class="bar" style="height:100%;animation-delay:0.3s;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Controls -->
+    <div class="player-center">
+      <div class="ctrl-row">
+        <button class="ctrl-btn" id="btn-shuffle"
+                data-tip="Shuffle">
+          <i class="fas fa-random"></i>
+        </button>
+        <button class="ctrl-btn" id="btn-prev"
+                data-tip="Previous">
+          <i class="fas fa-step-backward"></i>
+        </button>
+        <button class="play-btn" onclick="Player.togglePlay()">
+          <i class="fas fa-play"></i>
+        </button>
+        <button class="ctrl-btn" id="btn-next"
+                data-tip="Next">
+          <i class="fas fa-step-forward"></i>
+        </button>
+        <button class="ctrl-btn" id="btn-repeat"
+                data-tip="Repeat">
+          <i class="fas fa-redo"></i>
+        </button>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-row">
+        <span class="time-lbl current">0:00</span>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:0%;">
+            <div class="progress-thumb"></div>
+          </div>
+          <div class="progress-tooltip">0:00</div>
+        </div>
+        <span class="time-lbl total right">0:00</span>
+      </div>
+    </div>
+
+    <!-- Volume + Extra Controls -->
+    <div class="player-right">
+      <div class="player-extras">
+        <button class="extra-btn"
+                onclick="openModal('modal-eq')"
+                data-tip="Equalizer">
+          <i class="fas fa-sliders-h"></i>
+        </button>
+        <button class="extra-btn"
+                onclick="UI.switchRightPanel('lyrics')"
+                data-tip="Lyrics">
+          <i class="fas fa-align-left"></i>
+        </button>
+        <button class="extra-btn"
+                onclick="openModal('modal-sleep')"
+                data-tip="Sleep Timer">
+          <i class="fas fa-moon"></i>
+        </button>
+      </div>
+      <i class="vol-icon"><i class="fas fa-volume-up"></i></i>
+      <div class="vol-track">
+        <div class="vol-fill" style="width:70%;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- =============================================
+     JAVASCRIPT FILES (ORDER MATTERS!)
+============================================= -->
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/player.js"></script>
+<script src="js/features.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
