@@ -154,7 +154,7 @@ function bestMatch(list, title, artist) {
 ───────────────────────────────────────────── */
 
 // ── JioSaavn stream URL
-app.get("/api/saavn/stream", async (req, res) => {
+app.get("/api/saavn", async (req, res) => {
   const { title, artist } = req.query;
   if (!title) return res.status(400).json({ error: "title required" });
 
@@ -196,7 +196,7 @@ app.get("/api/saavn/stream", async (req, res) => {
 });
 
 // ── Audius proxy (avoids browser CORS issues)
-app.get("/api/audius/stream", async (req, res) => {
+app.get("/api/audius", async (req, res) => {
   const { title, artist } = req.query;
   if (!title) return res.status(400).json({ error: "title required" });
 
