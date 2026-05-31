@@ -203,6 +203,7 @@ const Player = {
     const track = document.querySelector(".progress-track");
     if (!track) return;
 
+    // Mouse events
     track.addEventListener("click", (e) => {
       if (!this.progressDragging) this.seekFromEvent(e);
     });
@@ -232,6 +233,25 @@ const Player = {
       this.seekFromEvent(e);
     });
 
+    // Touch events (mobile)
+    track.addEventListener("touchstart", (e) => {
+      this.progressDragging = true;
+      this.seekFromTouch(e, true);
+      e.preventDefault();
+    }, { passive: false });
+
+    track.addEventListener("touchmove", (e) => {
+      if (!this.progressDragging) return;
+      this.seekFromTouch(e, true);
+      e.preventDefault();
+    }, { passive: false });
+
+    track.addEventListener("touchend", (e) => {
+      if (!this.progressDragging) return;
+      this.progressDragging = false;
+      this.seekFromTouch(e);
+    });
+
     track.addEventListener("mousemove", (e) => {
       const rect = track.getBoundingClientRect();
       const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -249,11 +269,13 @@ const Player = {
     });
   },
 
-  seekFromEvent(e, previewOnly = false) {
+  seekFromTouch(e, previewOnly = false) {
     const track = document.querySelector(".progress-track");
     if (!track) return;
+    const touch = e.touches?.[0] || e.changedTouches?.[0];
+    if (!touch) return;
     const rect = track.getBoundingClientRect();
-    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const pct  = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
     const time = pct * (State.duration || 0);
 
     document.querySelectorAll(".progress-fill").forEach(el => {
@@ -266,6 +288,23 @@ const Player = {
     if (!previewOnly && State.duration > 0) {
       this.audio.currentTime = time;
       State.currentTime      = time;
+    }
+  },
+seekClick(e) {
+    const track = e.currentTarget || e.target.closest(".progress-track");
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const time = pct * (State.duration || 0);
+    document.querySelectorAll(".progress-fill").forEach(el => {
+      el.style.width = (pct * 100) + "%";
+    });
+    document.querySelectorAll(".time-lbl.current").forEach(el => {
+      el.textContent = UI.formatTime(time);
+    });
+    if (State.duration > 0) {
+      this.audio.currentTime = time;
+      State.currentTime = time;
     }
   },
 

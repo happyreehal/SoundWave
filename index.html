@@ -76,7 +76,7 @@
     </div>
     <div class="progress-row" style="width:100%;padding:0 10px;">
       <span class="time-lbl current">0:00</span>
-      <div class="progress-track" onclick="Player.seek(event)" style="flex:1;">
+      <div class="progress-track" onclick="Player.seekClick(event)" style="flex:1;">
         <div class="progress-fill" style="width:0%;">
           <div class="progress-thumb"></div>
         </div>
@@ -497,7 +497,7 @@
       <!-- Progress Bar -->
       <div class="progress-row">
         <span class="time-lbl current">0:00</span>
-        <div class="progress-track">
+        <div class="progress-track" onclick="Player.seekClick(event)">
           <div class="progress-fill" style="width:0%;">
             <div class="progress-thumb"></div>
           </div>
