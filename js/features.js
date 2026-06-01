@@ -19,7 +19,6 @@ const EQ = {
   render() {
     var grid = document.getElementById("eq-grid");
     if (!grid) return;
-    var self = this;
     grid.innerHTML = this.BANDS.map(function(band, i) {
       return '<div class="eq-band">' +
         '<div class="eq-val" id="eq-val-' + i + '">' + (State.eqValues[i] >= 0 ? "+" : "") + State.eqValues[i] + 'dB</div>' +
@@ -101,83 +100,133 @@ const SleepTimer = {
   },
 };
 
+// ✅ LYRICS - Completely Fixed Version
 const Lyrics = {
-  data: {},
-  isLoading: false,
+  _data: {},           // Song id → lyrics lines cache
+  _currentSongId: null,
+  _activeIndex: -1,
+  _fetchTimeout: null,
 
   async updateForSong(song) {
-    var titleEl = document.getElementById("lyrics-title");
+    if (!song) return;
+
+    // Title/artist update karo
+    var titleEl  = document.getElementById("lyrics-title");
     var artistEl = document.getElementById("lyrics-artist");
-    var linesEl = document.getElementById("lyrics-lines");
-
-    if (titleEl) titleEl.textContent = song.title;
+    if (titleEl)  titleEl.textContent  = song.title;
     if (artistEl) artistEl.textContent = song.artist;
-    if (!linesEl) return;
 
-    linesEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);"><div class="spinner" style="margin:0 auto 12px;width:20px;height:20px;"></div>Loading lyrics...</div>';
-
-    if (this.data[song.id]) {
-      this.renderLines(this.data[song.id], linesEl);
+    // ✅ Same song dobara fetch mat karo
+    if (this._currentSongId === song.id && this._data[song.id]) {
+      this.renderLines(this._data[song.id]);
       return;
     }
 
-    this.isLoading = true;
-    var lyrics = await API.getLyrics(song);
-    this.isLoading = false;
+    this._currentSongId = song.id;
+    this._activeIndex   = -1;
+    this.showLoading();
 
-    if (lyrics && lyrics.length > 0) {
-      this.data[song.id] = lyrics;
-      this.renderLines(lyrics, linesEl);
-    } else {
-      var lines = this.generatePlaceholder(song.duration || 200);
-      this.data[song.id] = lines;
-      this.renderLines(lines, linesEl);
-    }
+    // ✅ Cancel previous pending fetch
+    if (this._fetchTimeout) clearTimeout(this._fetchTimeout);
+
+    // ✅ 500ms wait - song load hone do pehle
+    var self = this;
+    this._fetchTimeout = setTimeout(async function() {
+      try {
+        var lyrics = await API.getLyrics(song);
+
+        // ✅ Check karo same song hai abhi bhi
+        if (self._currentSongId !== song.id) return;
+
+        if (lyrics && lyrics.length > 0) {
+          self._data[song.id] = lyrics;
+          self.renderLines(lyrics);
+          console.log("✅ Lyrics loaded:", lyrics.length, "lines");
+        } else {
+          // ✅ Placeholder nahi - sirf "not available" dikhao
+          self.showNoLyrics();
+        }
+      } catch (e) {
+        console.warn("Lyrics error:", e.message);
+        self.showNoLyrics();
+      }
+    }, 500);
   },
 
-  generatePlaceholder(duration) {
-    var count = Math.floor(duration / 8);
-    var templates = [
-      "♪ Music fills the empty space", "♪ Every note a perfect place",
-      "♪ Rhythm guides the way", "♪ Melody throughout the day",
-      "♪ Sound becomes a story told", "♪ Every lyric pure as gold",
-      "♪ Beat drops and the world stands still", "♪ Music gives that special thrill",
-      "♪ Harmony in every line", "♪ When the music plays, it's fine",
-      "♪ Let the bass take you away", "♪ In the groove we want to stay",
-    ];
-    return Array.from({ length: Math.min(count, 12) }, function(_, i) {
-      return { time: i * 8, text: templates[i % templates.length] };
-    });
-  },
+  renderLines(lines) {
+    var container = document.getElementById("lyrics-lines");
+    if (!container) return;
 
-  renderLines(lines, container) {
-    container.innerHTML = lines.map(function(l, i) {
-      return '<div class="lyric-line" id="lyric-' + i + '" onclick="Lyrics.seekTo(' + l.time + ')">' + l.text + '</div>';
+    container.innerHTML = lines.map(function(line, i) {
+      return '<div class="lyric-line" data-index="' + i + '" data-time="' + (line.time || 0) + '" ' +
+        'onclick="Lyrics.seekTo(' + (line.time || 0) + ')">' +
+        '<span>' + (line.text || "♪") + '</span>' +
+      '</div>';
     }).join("");
   },
 
+  // ✅ MAIN FIX - Proper sync
   highlightLine(currentTime) {
-    if (!State.currentSong) return;
-    var lines = this.data[State.currentSong.id];
-    if (!lines) return;
+    if (!this._currentSongId) return;
+    var lines = this._data[this._currentSongId];
+    if (!lines || lines.length === 0) return;
 
+    // ✅ Reverse loop - last matching line dhundo
     var activeIdx = -1;
-    for (var i = 0; i < lines.length; i++) {
-      if (currentTime >= lines[i].time) activeIdx = i;
+    for (var i = lines.length - 1; i >= 0; i--) {
+      if (currentTime >= lines[i].time) {
+        activeIdx = i;
+        break;
+      }
     }
 
-    lines.forEach(function(_, i) {
-      var el = document.getElementById("lyric-" + i);
-      if (!el) return;
-      el.classList.toggle("active", i === activeIdx);
-      el.classList.toggle("passed", i < activeIdx);
-      if (i === activeIdx) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Same line → skip (performance optimization)
+    if (activeIdx === this._activeIndex) return;
+    this._activeIndex = activeIdx;
+
+    // ✅ DOM update
+    var allLines = document.querySelectorAll(".lyric-line");
+    allLines.forEach(function(el, i) {
+      el.classList.remove("active", "passed");
+      if      (i < activeIdx)  el.classList.add("passed");
+      else if (i === activeIdx) el.classList.add("active");
     });
+
+    // ✅ Active line scroll into view
+    if (activeIdx >= 0 && allLines[activeIdx]) {
+      allLines[activeIdx].scrollIntoView({
+        behavior: "smooth",
+        block:    "center",
+      });
+    }
   },
 
   seekTo(time) {
-    Player.audio.currentTime = time;
-    State.currentTime = time;
+    if (!isNaN(time) && time >= 0) {
+      Player.audio.currentTime = time;
+      State.currentTime = time;
+    }
+  },
+
+  showLoading() {
+    var container = document.getElementById("lyrics-lines");
+    if (!container) return;
+    container.innerHTML =
+      '<div style="text-align:center;padding:40px 16px;color:var(--text-muted);">' +
+        '<div class="spinner" style="margin:0 auto 12px;width:28px;height:28px;border-width:3px;"></div>' +
+        '<div style="font-size:13px;">Loading lyrics...</div>' +
+      '</div>';
+  },
+
+  showNoLyrics() {
+    var container = document.getElementById("lyrics-lines");
+    if (!container) return;
+    container.innerHTML =
+      '<div style="text-align:center;padding:40px 16px;color:var(--text-muted);">' +
+        '<i class="fas fa-music" style="font-size:32px;margin-bottom:12px;display:block;opacity:0.4;"></i>' +
+        '<div style="font-size:14px;font-weight:600;margin-bottom:6px;">No lyrics available</div>' +
+        '<div style="font-size:12px;opacity:0.6;">for this song</div>' +
+      '</div>';
   },
 };
 
@@ -189,16 +238,14 @@ const ContextMenu = {
     event.preventDefault();
     this.songIndex = songIndex;
     this.currentSong = State.queue[songIndex] || State.currentSong;
-
     var menu = document.getElementById("context-menu");
     if (!menu) return;
     menu.classList.remove("hidden");
-
     var x = event.clientX, y = event.clientY;
     if (x + 220 > window.innerWidth) x = window.innerWidth - 230;
     if (y + 260 > window.innerHeight) y = window.innerHeight - 270;
     menu.style.left = x + "px";
-    menu.style.top = y + "px";
+    menu.style.top  = y + "px";
   },
 
   close() {
@@ -210,7 +257,6 @@ const ContextMenu = {
     this.close();
     var song = this.currentSong || State.queue[this.songIndex] || State.currentSong;
     if (!song) return;
-
     switch (type) {
       case "play":
         Player.playSong(song);
@@ -223,7 +269,11 @@ const ContextMenu = {
       case "like":
         State.toggleLike(song.id);
         UI.updateLikeBtn(State.liked.has(song.id));
-        UI.showToast(State.liked.has(song.id) ? "Added to Liked Songs 💚" : "Removed", "fas fa-heart", State.liked.has(song.id) ? "green" : "red");
+        UI.showToast(
+          State.liked.has(song.id) ? "Added to Liked Songs 💚" : "Removed",
+          "fas fa-heart",
+          State.liked.has(song.id) ? "green" : "red"
+        );
         break;
       case "add-to-playlist":
         PlaylistManager.showAddToPlaylist(song);
@@ -249,23 +299,19 @@ const ContextMenu = {
   },
 };
 
-document.addEventListener("click", function() { ContextMenu.close(); });
+document.addEventListener("click",   function()  { ContextMenu.close(); });
 document.addEventListener("keydown", function(e) { if (e.key === "Escape") ContextMenu.close(); });
 
 const Search = {
   debounceTimer: null,
-  currentQuery: "",
+  currentQuery:  "",
 
   async handleInput(value) {
     var query = value.trim();
     var clearBtn = document.querySelector(".search-clear");
     if (clearBtn) clearBtn.style.display = query ? "block" : "none";
-
     clearTimeout(this.debounceTimer);
-    if (!query) {
-      UI.navigateTo("home");
-      return;
-    }
+    if (!query) { UI.navigateTo("home"); return; }
     UI.navigateTo("search");
     this.currentQuery = query;
     this.debounceTimer = setTimeout(function() { Search.execute(query); }, 400);
@@ -273,35 +319,40 @@ const Search = {
 
   async execute(query) {
     var resultsSection = document.getElementById("search-results");
-    var categories = document.getElementById("search-categories");
+    var categories     = document.getElementById("search-categories");
     if (resultsSection) resultsSection.style.display = "block";
-    if (categories) categories.style.display = "none";
+    if (categories)     categories.style.display     = "none";
 
     var cardsEl = document.getElementById("search-cards");
-    var listEl = document.getElementById("search-songs");
+    var listEl  = document.getElementById("search-songs");
     if (cardsEl) cardsEl.innerHTML = UI.renderSkeletonCards(6);
-    if (listEl) listEl.innerHTML = UI.renderSkeletonRows(5);
+    if (listEl)  listEl.innerHTML  = UI.renderSkeletonRows(5);
 
     var songs = await API.search(query, 20);
 
     if (songs.length === 0) {
       if (cardsEl) cardsEl.innerHTML = "";
       if (listEl) {
-        listEl.innerHTML = '<div class="no-results"><i class="fas fa-search"></i><h3>No results for "' + UI.escHtml(query) + '"</h3><p>Try different keywords or check spelling</p></div>';
+        listEl.innerHTML =
+          '<div class="no-results">' +
+            '<i class="fas fa-search"></i>' +
+            '<h3>No results for "' + UI.escHtml(query) + '"</h3>' +
+            '<p>Try different keywords or check spelling</p>' +
+          '</div>';
       }
       return;
     }
 
     State.queue = songs;
     if (cardsEl) cardsEl.innerHTML = songs.slice(0, 6).map(function(s, i) { return UI.renderCard(s, i, songs); }).join("");
-    if (listEl) listEl.innerHTML = songs.slice(0, 15).map(function(s, i) { return UI.renderSongRow(s, i); }).join("");
+    if (listEl)  listEl.innerHTML  = songs.slice(0, 15).map(function(s, i) { return UI.renderSongRow(s, i); }).join("");
   },
 
   clear() {
     document.getElementById("search-input").value = "";
     var clearBtn = document.querySelector(".search-clear");
     if (clearBtn) clearBtn.style.display = "none";
-    document.getElementById("search-results").style.display = "none";
+    document.getElementById("search-results").style.display  = "none";
     document.getElementById("search-categories").style.display = "";
     UI.navigateTo("home");
   },

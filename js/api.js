@@ -8,11 +8,10 @@ const API = {
   _cache: new Map(),
   _cacheExpiry: 5 * 60 * 1000,
 
-  // ✅ Fix 1: Vercel URL bhi add kiya
   SERVER: window.location.hostname === "happyreehal.github.io"
     ? "https://soundwave-backend-ivory.vercel.app"
     : window.location.hostname === "sound-wave-peach.vercel.app"
-      ? "https://soundwave-backend-ivory.vercel.app"  // ✅ Vercel frontend → backend
+      ? "https://soundwave-backend-ivory.vercel.app"
       : window.location.port === "3000"
         ? "http://localhost:3000"
         : null,
@@ -36,7 +35,7 @@ const API = {
       const url = this.SERVER
         ? this.SERVER + "/api/search?q=" + encodeURIComponent(query) + "&limit=" + limit
         : this.ITUNES_BASE + "/search?term=" + encodeURIComponent(query) + "&media=music&entity=song&limit=" + limit;
-      const res = await fetch(url);
+      const res  = await fetch(url);
       const data = await res.json();
       let results;
       if (this.SERVER && data.results) {
@@ -80,14 +79,13 @@ const API = {
     return null;
   },
 
-  // ✅ Fix 2: Album bhi pass karo Saavn ko - Wrong song match fix
   async getSaavnFromServer(song) {
     try {
       const res = await fetch(
         this.SERVER + "/api/saavn?" +
-          "title="  + encodeURIComponent(song.title)       +
+          "title="   + encodeURIComponent(song.title)      +
           "&artist=" + encodeURIComponent(song.artist || "") +
-          "&album="  + encodeURIComponent(song.album  || ""), // ✅ Album add kiya
+          "&album="  + encodeURIComponent(song.album  || ""),
         { signal: AbortSignal.timeout(12000) }
       );
       const data = await res.json();
@@ -105,7 +103,8 @@ const API = {
   async getAudiusFromServer(song) {
     try {
       const res = await fetch(
-        this.SERVER + "/api/audius?title=" + encodeURIComponent(song.title) +
+        this.SERVER + "/api/audius?" +
+          "title="   + encodeURIComponent(song.title)      +
           "&artist=" + encodeURIComponent(song.artist || ""),
         { signal: AbortSignal.timeout(10000) }
       );
@@ -131,10 +130,11 @@ const API = {
           { signal: AbortSignal.timeout(5000) }
         );
         if (!res.ok) continue;
-        const data = await res.json();
+        const data   = await res.json();
         const tracks = data.data || [];
         if (!tracks.length) continue;
-        const match = this.findBestMatch(tracks, song.title, song.artist,
+        const match = this.findBestMatch(
+          tracks, song.title, song.artist,
           function(t) { return t.title; },
           function(t) { return t.user && t.user.name; }
         );
@@ -146,20 +146,53 @@ const API = {
     return null;
   },
 
+  // ✅ FIXED: 3 strategies + 15sec timeout
   async getLyrics(song) {
     if (!song) return null;
     try {
-      const url = this.LYRICS_BASE + "/get?track_name=" + encodeURIComponent(song.title) +
-        "&artist_name=" + encodeURIComponent(song.artist) +
-        "&album_name=" + encodeURIComponent(song.album || "");
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.syncedLyrics) {
-        return this.parseSyncedLyrics(data.syncedLyrics);
-      } else if (data.plainLyrics) {
-        return this.parsePlainLyrics(data.plainLyrics, song.duration || 200);
+      // ✅ Strategy 1: Title + Artist + Album
+      const url1 = this.LYRICS_BASE + "/get?" +
+        "track_name="   + encodeURIComponent(song.title)      +
+        "&artist_name=" + encodeURIComponent(song.artist)     +
+        "&album_name="  + encodeURIComponent(song.album || "");
+      const res1 = await fetch(url1, { signal: AbortSignal.timeout(15000) });
+      if (res1.ok) {
+        const data = await res1.json();
+        if (data.syncedLyrics) return this.parseSyncedLyrics(data.syncedLyrics);
+        if (data.plainLyrics)  return this.parsePlainLyrics(data.plainLyrics, song.duration || 200);
       }
+
+      // ✅ Strategy 2: Title + Artist only
+      const url2 = this.LYRICS_BASE + "/get?" +
+        "track_name="   + encodeURIComponent(song.title) +
+        "&artist_name=" + encodeURIComponent(song.artist);
+      const res2 = await fetch(url2, { signal: AbortSignal.timeout(15000) });
+      if (res2.ok) {
+        const data = await res2.json();
+        if (data.syncedLyrics) return this.parseSyncedLyrics(data.syncedLyrics);
+        if (data.plainLyrics)  return this.parsePlainLyrics(data.plainLyrics, song.duration || 200);
+      }
+
+      // ✅ Strategy 3: Search endpoint
+      const url3 = this.LYRICS_BASE + "/search?" +
+        "track_name="   + encodeURIComponent(song.title) +
+        "&artist_name=" + encodeURIComponent(song.artist);
+      const res3 = await fetch(url3, { signal: AbortSignal.timeout(15000) });
+      if (res3.ok) {
+        const results = await res3.json();
+        if (results && results.length > 0) {
+          const detail = await fetch(
+            this.LYRICS_BASE + "/get/" + results[0].id,
+            { signal: AbortSignal.timeout(15000) }
+          );
+          if (detail.ok) {
+            const data = await detail.json();
+            if (data.syncedLyrics) return this.parseSyncedLyrics(data.syncedLyrics);
+            if (data.plainLyrics)  return this.parsePlainLyrics(data.plainLyrics, song.duration || 200);
+          }
+        }
+      }
+
       return null;
     } catch (e) {
       console.warn("Lyrics fetch failed:", e.message);
@@ -167,18 +200,15 @@ const API = {
     }
   },
 
-  // ✅ Fix 3: Regex escape fix - \d tha, \\d hona chahiye tha
+  // ✅ FIXED: Correct regex + empty lines skip
   parseSyncedLyrics(text) {
     const lines = [];
     const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
     let match;
     while ((match = regex.exec(text)) !== null) {
-      const minutes = parseInt(match[1]);
-      const seconds = parseInt(match[2]);
-      lines.push({
-        time: minutes * 60 + seconds,
-        text: match[4].trim()
-      });
+      const time = parseInt(match[1]) * 60 + parseInt(match[2]);
+      const txt  = match[4].trim();
+      if (txt) lines.push({ time, text: txt }); // ✅ Empty lines skip
     }
     return lines.length > 0 ? lines : null;
   },
@@ -195,10 +225,10 @@ const API = {
     const tT = this.clean(title);
     const tA = this.clean(artist);
     const scored = items.map(function(item) {
-      const iT = API.clean(getTitle(item) || "");
+      const iT = API.clean(getTitle(item)  || "");
       const iA = API.clean(getArtist(item) || "");
       let score = 0;
-      if (iT === tT) score += 100;
+      if (iT === tT)               score += 100;
       else if (iT.indexOf(tT) !== -1) score += 70;
       else if (tT.indexOf(iT) !== -1) score += 50;
       else {
@@ -206,7 +236,7 @@ const API = {
         const iw = iT.split(" ").filter(function(w) { return w.length > 2; });
         score += tw.filter(function(w) { return iw.indexOf(w) !== -1; }).length * 15;
       }
-      if (iA === tA) score += 50;
+      if (iA === tA)               score += 50;
       else if (iA.indexOf(tA) !== -1) score += 35;
       else if (tA.indexOf(iA) !== -1) score += 25;
       return { item: item, score: score };
@@ -228,18 +258,18 @@ const API = {
   formatItunesTrack(t) {
     const art = (t.artworkUrl100 || "")
       .replace("100x100bb", "600x600bb")
-      .replace("100x100", "600x600");
+      .replace("100x100",   "600x600");
     return {
       id:         String(t.trackId),
-      title:      t.trackName              || "Unknown",
-      artist:     t.artistName             || "Unknown",
-      album:      t.collectionName         || "Unknown",
+      title:      t.trackName         || "Unknown",
+      artist:     t.artistName        || "Unknown",
+      album:      t.collectionName    || "Unknown",
       duration:   Math.round((t.trackTimeMillis || 0) / 1000),
-      previewUrl: t.previewUrl             || null,
+      previewUrl: t.previewUrl        || null,
       artwork:    art,
-      genre:      t.primaryGenreName       || "Music",
-      explicit:   t.trackExplicitness      === "explicit",
-      itunesUrl:  t.trackViewUrl           || "#",
+      genre:      t.primaryGenreName  || "Music",
+      explicit:   t.trackExplicitness === "explicit",
+      itunesUrl:  t.trackViewUrl      || "#",
       source:     "itunes",
     };
   },
