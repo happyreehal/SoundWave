@@ -8,11 +8,14 @@ const API = {
   _cache: new Map(),
   _cacheExpiry: 5 * 60 * 1000,
 
+  // ✅ Fix 1: Vercel URL bhi add kiya
   SERVER: window.location.hostname === "happyreehal.github.io"
     ? "https://soundwave-backend-ivory.vercel.app"
-    : window.location.port === "3000"
-      ? "http://localhost:3000"
-      : null,
+    : window.location.hostname === "sound-wave-peach.vercel.app"
+      ? "https://soundwave-backend-ivory.vercel.app"  // ✅ Vercel frontend → backend
+      : window.location.port === "3000"
+        ? "http://localhost:3000"
+        : null,
 
   AUDIUS_NODES: [
     "https://discoveryprovider.audius.co",
@@ -77,10 +80,14 @@ const API = {
     return null;
   },
 
+  // ✅ Fix 2: Album bhi pass karo Saavn ko - Wrong song match fix
   async getSaavnFromServer(song) {
     try {
       const res = await fetch(
-        this.SERVER + "/api/saavn?title=" + encodeURIComponent(song.title) + "&artist=" + encodeURIComponent(song.artist),
+        this.SERVER + "/api/saavn?" +
+          "title="  + encodeURIComponent(song.title)       +
+          "&artist=" + encodeURIComponent(song.artist || "") +
+          "&album="  + encodeURIComponent(song.album  || ""), // ✅ Album add kiya
         { signal: AbortSignal.timeout(12000) }
       );
       const data = await res.json();
@@ -98,7 +105,8 @@ const API = {
   async getAudiusFromServer(song) {
     try {
       const res = await fetch(
-        this.SERVER + "/api/audius?title=" + encodeURIComponent(song.title) + "&artist=" + encodeURIComponent(song.artist),
+        this.SERVER + "/api/audius?title=" + encodeURIComponent(song.title) +
+          "&artist=" + encodeURIComponent(song.artist || ""),
         { signal: AbortSignal.timeout(10000) }
       );
       const data = await res.json();
@@ -159,9 +167,10 @@ const API = {
     }
   },
 
+  // ✅ Fix 3: Regex escape fix - \d tha, \\d hona chahiye tha
   parseSyncedLyrics(text) {
     const lines = [];
-    const regex = /\[(\\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
+    const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
     let match;
     while ((match = regex.exec(text)) !== null) {
       const minutes = parseInt(match[1]);
@@ -221,17 +230,17 @@ const API = {
       .replace("100x100bb", "600x600bb")
       .replace("100x100", "600x600");
     return {
-      id: String(t.trackId),
-      title: t.trackName || "Unknown",
-      artist: t.artistName || "Unknown",
-      album: t.collectionName || "Unknown",
-      duration: Math.round((t.trackTimeMillis || 0) / 1000),
-      previewUrl: t.previewUrl || null,
-      artwork: art,
-      genre: t.primaryGenreName || "Music",
-      explicit: t.trackExplicitness === "explicit",
-      itunesUrl: t.trackViewUrl || "#",
-      source: "itunes",
+      id:         String(t.trackId),
+      title:      t.trackName              || "Unknown",
+      artist:     t.artistName             || "Unknown",
+      album:      t.collectionName         || "Unknown",
+      duration:   Math.round((t.trackTimeMillis || 0) / 1000),
+      previewUrl: t.previewUrl             || null,
+      artwork:    art,
+      genre:      t.primaryGenreName       || "Music",
+      explicit:   t.trackExplicitness      === "explicit",
+      itunesUrl:  t.trackViewUrl           || "#",
+      source:     "itunes",
     };
   },
 
@@ -249,13 +258,14 @@ const API = {
   async testConnection() {
     console.log("Testing connections...");
     console.log("Mode:", this.SERVER ? "Node.js Server (Full songs)" : "Browser only (30sec previews)");
+    console.log("SERVER URL:", this.SERVER);
     if (this.SERVER) {
       try {
         const r = await fetch(this.SERVER + "/api/health");
         const d = await r.json();
         console.log("Server:", d.status);
       } catch (e) {
-        console.log("Server: Not running");
+        console.log("Server: Not running -", e.message);
       }
     }
   },
