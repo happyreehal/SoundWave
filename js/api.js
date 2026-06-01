@@ -3,6 +3,14 @@
    Fixes: Image loading, caching, real lyrics from LRCLIB
 ============================================================ */
 const API = {
+  _fetchJsonWithTimeout(url, ms) {
+  ms = ms || 12000;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { signal: controller.signal })
+    .then(r => r.json())
+    .finally(() => clearTimeout(t));
+},
   ITUNES_BASE: "https://itunes.apple.com",
   LYRICS_BASE: "https://lrclib.net/api",
   _cache: new Map(),
@@ -80,45 +88,44 @@ const API = {
   },
 
   async getSaavnFromServer(song) {
-    try {
-      const res = await fetch(
-        this.SERVER + "/api/saavn?" +
-          "title="   + encodeURIComponent(song.title)      +
-          "&artist=" + encodeURIComponent(song.artist || "") +
-          "&album="  + encodeURIComponent(song.album  || ""),
-        { signal: AbortSignal.timeout(12000) }
-      );
-      const data = await res.json();
-      if (data.success && data.url) {
-        console.log("JioSaavn matched:", data.matched, "(score:" + data.score + ")");
-        return data.url;
-      }
-      return null;
-    } catch (e) {
-      console.warn("Saavn server error:", e.message);
-      return null;
+  try {
+    const url =
+      this.SERVER + "/api/saavn?" +
+      "title=" + encodeURIComponent(song.title) +
+      "&artist=" + encodeURIComponent(song.artist || "") +
+      "&album=" + encodeURIComponent(song.album || "");
+
+    const data = await this._fetchJsonWithTimeout(url, 15000);
+
+    if (data && data.success && data.url) {
+      console.log("JioSaavn matched:", data.matched, "(score:" + data.score + ")");
+      return data.url;
     }
-  },
+    return null;
+  } catch (e) {
+    console.warn("Saavn server error:", e.message);
+    return null;
+  }
+},
 
   async getAudiusFromServer(song) {
-    try {
-      const res = await fetch(
-        this.SERVER + "/api/audius?" +
-          "title="   + encodeURIComponent(song.title)      +
-          "&artist=" + encodeURIComponent(song.artist || ""),
-        { signal: AbortSignal.timeout(10000) }
-      );
-      const data = await res.json();
-      if (data.success && data.url) {
-        console.log("Audius matched:", data.matched);
-        return data.url;
-      }
-      return null;
-    } catch (e) {
-      console.warn("Audius server error:", e.message);
-      return null;
+  try {
+    const url =
+      this.SERVER + "/api/audius?title=" + encodeURIComponent(song.title) +
+      "&artist=" + encodeURIComponent(song.artist || "");
+
+    const data = await this._fetchJsonWithTimeout(url, 12000);
+
+    if (data && data.success && data.url) {
+      console.log("Audius matched:", data.matched);
+      return data.url;
     }
-  },
+    return null;
+  } catch (e) {
+    console.warn("Audius server error:", e.message);
+    return null;
+  }
+},
 
   async getAudiusDirect(song) {
     const query = song.title + " " + song.artist;

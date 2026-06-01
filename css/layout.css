@@ -440,99 +440,33 @@
   z-index: 100;
   transition: background 0.5s var(--ease);
 }
-/* ============================================================
-   MOBILE RESPONSIVE
-============================================================ */
-@media (max-width: 768px) {
-
-  #app {
-    grid-template-rows: 1fr var(--player-h);
-    grid-template-columns: 1fr !important;
-  }
-
-  #sidebar-left {
-    display: none !important;
-  }
-
-  #sidebar-right {
-    display: none !important;
-  }
-
-  #main-content {
-    grid-row: 1;
-    grid-column: 1;
-  }
-
-  #player-bar {
-    grid-row: 2;
-    grid-column: 1;
-    padding: 0 8px;
-    gap: 6px;
-  }
-
-  /* Hide extra player buttons on mobile */
-  .player-extras { display: none; }
-  .topbar-nav    { display: none; }
-  .topbar-right .topbar-icon-btn:not(:last-child) { display: none; }
-
-  /* Now playing smaller */
-  .now-playing {
-    width: 140px;
-    min-width: 0;
-  }
-
-  .now-playing-art {
-    width: 42px;
-    height: 42px;
-  }
-
-  /* Search full width */
-  .search-wrap {
-    max-width: 100%;
-  }
-
-  /* Content padding */
-  #content-area {
-    padding: 16px 12px;
-  }
-
-  /* Player center */
-  .player-center {
-    max-width: 100%;
-  }
-
-  /* Volume hide on mobile */
-  .vol-track { display: none; }
-  .vol-icon  { display: none; }
-
-  /* Bottom nav for mobile */
-  #mobile-nav {
-    display: flex;
-  }
-}
 
 /* Mobile Bottom Navigation */
 #mobile-nav {
   display: none;
   position: fixed;
-  bottom: var(--player-h);
-  left: 0; right: 0;
-  height: 56px;
-  background: var(--bg-sidebar);
-  border-top: 1px solid var(--border);
-  z-index: 99;
+  left: 0;
+  right: 0;
+  bottom: 0;                 /* ✅ always bottom */
+  height: 58px;
+  background: rgba(10,10,10,0.95);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(10px);
+  z-index: 10000;
   justify-content: space-around;
   align-items: center;
 }
 
 .mob-nav-btn {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
+  gap: 4px;
   color: var(--text-muted);
   font-size: 20px;
-  padding: 6px 16px;
+  padding: 6px 0;
   cursor: pointer;
   transition: var(--t-fast);
 }
@@ -542,6 +476,103 @@
   font-weight: 600;
 }
 
-.mob-nav-btn.active {
-  color: var(--accent);
+.mob-nav-btn.active { color: var(--accent); }
+
+/* ============================================================
+   MOBILE RESPONSIVE (keep your old behavior, but no conflicts)
+============================================================ */
+
+/* Small screens - minor tweaks */
+@media (max-width: 768px) {
+  /* keep old small tweaks (safe) */
+  .player-extras { display: none; }
+  .topbar-nav    { display: none; }
+  .topbar-right .topbar-icon-btn:not(:last-child) { display: none; }
+
+  .search-wrap { max-width: 100%; }
+  #content-area { padding: 16px 12px; }
+
+  .vol-track { display: none; }
+  .vol-icon  { display: none; }
+}
+
+/* Main mobile layout (single source of truth) */
+@media (max-width: 900px) {
+
+  /* allow scroll */
+  html, body {
+    height: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* collapse layout */
+  #app {
+    display: block !important;
+    height: auto !important;
+    min-height: 100vh;
+    overflow: visible !important;
+  }
+
+  #sidebar-left  { display: none !important; }
+  #sidebar-right { display: none !important; }
+
+  #main-content {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #topbar {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+  }
+
+  .cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .song-row { padding: 10px 10px !important; }
+
+  /* floating player bar above bottom nav */
+  #player-bar {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    bottom: 58px; /* bottom nav height */
+    height: 72px !important;
+    padding: 10px 10px !important;
+    z-index: 9999;
+  }
+
+  .player-center { display: none !important; }
+  .player-right  { display: none !important; }
+
+  .now-playing {
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .np-text .np-title  { font-size: 13px !important; }
+  .np-text .np-artist { font-size: 11px !important; }
+
+  /* keep content visible above bars */
+  #content-area {
+    padding-bottom: 150px !important; /* player + nav spacing */
+    height: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    position: relative !important;
+  }
+
+  #content-area, #main-content, .page { position: relative !important; }
+
+  /* show bottom nav */
+  #mobile-nav { display: flex !important; }
+
+  /* landing screen hidden should not block */
+  #landing-screen.hidden { display: none !important; }
 }

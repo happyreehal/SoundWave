@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/components.css"/>
   <link rel="stylesheet" href="css/animations.css"/>
   <style>
+    /* Landing / Login Screen */
     #landing-screen {
       position: fixed; inset: 0; z-index: 10000;
       background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f23 100%);
@@ -57,10 +58,11 @@
       transform: translateY(-2px);
       box-shadow: 0 8px 30px rgba(255,255,255,0.2);
     }
-    .google-btn img { width: 20px; height: 20px; }
+    .google-btn img {
+      width: 20px; height: 20px;
+    }
     .guest-btn {
-      margin-top: 16px; background: none;
-      border: 1px solid rgba(255,255,255,0.2);
+      margin-top: 16px; background: none; border: 1px solid rgba(255,255,255,0.2);
       color: #aaa; padding: 12px 24px; border-radius: 999px;
       font-size: 13px; cursor: pointer; transition: all 0.2s;
     }
@@ -73,20 +75,7 @@
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%231db954' fill-opacity='1' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E") no-repeat bottom;
       background-size: cover;
     }
-    .landing-particles {
-      position: absolute; inset: 0; overflow: hidden; pointer-events: none;
-    }
-    .particle {
-      position: absolute; width: 4px; height: 4px;
-      background: var(--accent); border-radius: 50%;
-      opacity: 0.3; animation: floatParticle 8s ease-in-out infinite;
-    }
-    @keyframes floatParticle {
-      0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-      10% { opacity: 0.3; }
-      90% { opacity: 0.3; }
-      100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; }
-    }
+    /* Loading spinner for app */
     #app-loader {
       position: fixed; inset: 0; z-index: 9999;
       background: var(--bg-primary);
@@ -98,23 +87,21 @@
     .loader-text { color: var(--text-secondary); font-size: 14px; }
   </style>
 
-  <!-- ✅ SAHI Firebase Version 10.12.0 -->
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-
-  <!-- ❌ <base target="_blank"> HATAO - Firebase tod deta tha -->
-
 </head>
+
 <body>
 
 <!-- Landing / Login Screen -->
 <div id="landing-screen">
-  <div class="landing-particles" id="particles"></div>
   <div class="landing-waves"></div>
   <div class="landing-logo">🎵</div>
   <div class="landing-title">SoundWave Pro</div>
   <div class="landing-subtitle">Millions of songs. Free forever.</div>
+
   <div class="landing-features">
     <div class="landing-feature">
       <i class="fas fa-music"></i>
@@ -133,10 +120,12 @@
       <div>Sleep Timer</div>
     </div>
   </div>
+
   <button class="google-btn" onclick="FB.signIn()">
     <img src="https://www.google.com/favicon.ico" alt="G"/>
     Continue with Google
   </button>
+
   <button class="guest-btn" onclick="App.enterAsGuest()">
     Continue as Guest
   </button>
@@ -169,14 +158,17 @@
   <div class="fs-bg"></div>
   <div class="fs-blur-art"></div>
   <button class="fs-close" onclick="UI.closeFullscreen()"><i class="fas fa-chevron-down"></i></button>
+
   <div class="fs-content">
     <div class="fs-art">
       <div style="width:100%;height:100%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:80px;">🎵</div>
     </div>
+
     <div style="text-align:center;">
       <div class="fs-title" style="font-size:22px;font-weight:900;margin-bottom:6px;">No song playing</div>
       <div class="fs-artist" style="font-size:14px;color:var(--text-secondary);">—</div>
     </div>
+
     <div class="progress-row" style="width:100%;padding:0 10px;">
       <span class="time-lbl current">0:00</span>
       <div class="progress-track" onclick="Player.seekClick(event)" style="flex:1;">
@@ -185,6 +177,7 @@
       </div>
       <span class="time-lbl total right">0:00</span>
     </div>
+
     <div class="ctrl-row">
       <button class="ctrl-btn" id="fs-shuffle" onclick="Player.toggleShuffle()" data-tip="Shuffle"><i class="fas fa-random"></i></button>
       <button class="ctrl-btn" onclick="Player.prev()" data-tip="Previous"><i class="fas fa-step-backward"></i></button>
@@ -192,11 +185,26 @@
       <button class="ctrl-btn" onclick="Player.next()" data-tip="Next"><i class="fas fa-step-forward"></i></button>
       <button class="ctrl-btn" id="fs-repeat" onclick="Player.toggleRepeat()" data-tip="Repeat"><i class="fas fa-redo"></i></button>
     </div>
+
     <div style="display:flex;gap:16px;align-items:center;">
       <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like"><i class="far fa-heart"></i></button>
       <button class="np-btn" onclick="UI.switchRightPanel('lyrics')" data-tip="Lyrics"><i class="fas fa-align-left"></i></button>
       <button class="np-btn" onclick="openModal('modal-eq')" data-tip="Equalizer"><i class="fas fa-sliders-h"></i></button>
     </div>
+  </div>
+
+  <!-- ✅ Fullscreen Lyrics Panel (INSIDE fullscreen-player) -->
+  <div id="fs-lyrics" class="fs-lyrics hidden">
+    <div class="fs-lyrics-head">
+      <div>
+        <div id="fs-lyrics-title" class="fs-lyrics-title">Lyrics</div>
+        <div id="fs-lyrics-artist" class="fs-lyrics-artist">—</div>
+      </div>
+      <button class="fs-lyrics-close" onclick="UI.closeFsLyrics()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="fs-lyrics-lines" class="fs-lyrics-lines"></div>
   </div>
 </div>
 
@@ -226,7 +234,6 @@
     </div>
   </div>
 </div>
-
 <!-- Modal: Sleep Timer -->
 <div class="modal-overlay" id="modal-sleep">
   <div class="modal">
@@ -333,6 +340,7 @@
         </div>
       </div>
     </div>
+
     <div id="content-area">
       <div class="page active" id="page-home">
         <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
@@ -340,11 +348,13 @@
           <p style="font-size:14px;">Loading SoundWave Pro...</p>
         </div>
       </div>
+
       <div class="page" id="page-search">
         <div class="section-header"><div><div class="section-title">Browse Categories</div></div></div>
         <div id="search-categories"></div>
         <div id="search-results" style="display:none;"></div>
       </div>
+
       <div class="page" id="page-library">
         <div class="section-header">
           <div>
@@ -410,6 +420,12 @@
       <div class="np-actions">
         <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like"><i class="far fa-heart"></i></button>
         <button class="np-btn" onclick="UI.switchRightPanel('queue')" data-tip="Queue"><i class="fas fa-list-ul"></i></button>
+
+        <!-- ✅ Mobile lyrics button -->
+        <button class="np-btn" onclick="UI.switchRightPanel('lyrics')" data-tip="Lyrics">
+          <i class="fas fa-align-left"></i>
+        </button>
+
         <div class="mini-visualizer" style="display:none;align-items:flex-end;gap:2px;height:16px;margin-left:4px;">
           <div class="bar" style="height:40%;animation-delay:0.0s;"></div>
           <div class="bar" style="height:80%;animation-delay:0.2s;"></div>
@@ -418,6 +434,7 @@
         </div>
       </div>
     </div>
+
     <div class="player-center">
       <div class="ctrl-row">
         <button class="ctrl-btn" id="btn-shuffle" data-tip="Shuffle"><i class="fas fa-random"></i></button>
@@ -435,6 +452,7 @@
         <span class="time-lbl total right">0:00</span>
       </div>
     </div>
+
     <div class="player-right">
       <div class="player-extras">
         <button class="extra-btn" onclick="openModal('modal-eq')" data-tip="Equalizer"><i class="fas fa-sliders-h"></i></button>
@@ -455,7 +473,7 @@
   <div class="mob-nav-btn" onclick="UI.openFullscreen()"><i class="fas fa-music"></i><span>Player</span></div>
 </div>
 
-<!-- Scripts - Correct Order -->
+<!-- Scripts -->
 <script src="js/state.js"></script>
 <script src="js/firebase.js"></script>
 <script src="js/api.js"></script>
