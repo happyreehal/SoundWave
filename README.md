@@ -29,13 +29,31 @@ Make sure you have both project folders downloaded into a common workspace direc
 Desktop/
 ├── soundwave-backend/      # Custom Express streaming backend
 └── webdite/                # Core frontend user interface
-STEP 2 — Initialize and Run the Backend API ServerOpen a terminal or command prompt window.Navigate directly into your backend project directory:Bash   cd C:\Users\happy\Desktop\soundwave-backend
-Install all the core architecture dependencies forcefully:Bash   npm install express@4 cors dotenv axios
-Start the Node.js production streaming microservice:Bash   npm start
-You should see a clean interactive terminal console box indicating:🎵 SoundWave Pro — http://localhost:3000STEP 3 — Initialize and Run the Frontend UI WebsiteOpen a completely new secondary terminal window (do not close the backend terminal!).Head into the main web assets directory:Bash   cd C:\Users\happy\Desktop\webdite
-Install the application dependencies:Bash   npm install
-Launch your local developer tracking server:Bash   npm run dev
-(Alternatively, since it uses native frontend resources, you can simply go to the folder and double-click index.html to load the interface instantly!)  📁 Complete Workspace Directory Tree1. Frontend Architecture (WEBDITE)webdite/
+```
+
+## STEP 2 — Initialize and Run the Backend API ServerOpen a terminal or command prompt window.Navigate directly into your backend project directory:
+Bash   cd C:\Users\happy\Desktop\soundwave-backend
+
+Install all the core architecture dependencies forcefully:
+Bash   npm install express@4 cors dotenv axios
+
+Start the Node.js production streaming microservice:
+Bash   npm start
+You should see a clean interactive terminal console box indicating:
+
+## 🎵 SoundWave Pro — http://localhost:3000STEP 
+3 — Initialize and Run the Frontend UI WebsiteOpen a completely new secondary terminal window (do not close the backend terminal!).Head into the main web assets directory:
+Bash   cd C:\Users\happy\Desktop\webdite
+
+Install the application dependencies:
+Bash   npm install
+
+Launch your local developer tracking server:
+Bash   npm run dev
+(Alternatively, since it uses native frontend resources, you can simply go to the folder and double-click index.html to load the interface instantly!) 
+
+## 📁 Complete Workspace Directory Tree1. Frontend Architecture 
+```text (WEBDITE)webdite/
 ├── css/
 │   ├── animations.css     # UI transition mechanics
 │   ├── base.css           # Global resets and root variables
@@ -68,5 +86,39 @@ Launch your local developer tracking server:Bash   npm run dev
 ├── package-lock.json      # System fixed version dependencies list
 ├── package.json           # Server configuration scripts and dependencies[cite: 1]
 ├── server.js              # Production cluster startup code[cite: 1]
-└── vercel.json            # Handles configurations for live API routing endpoints[cite: 1]
-🎮 How to Use the App🔍 Discovery & Search: Type any track or artist inside the search bar. The client application utilizes js/api.js to shoot requests to the backend server dynamically[cite: 1].🛡️ Content Proxying: The backend checks the input parameters, scrapes links safely from external music nodes, calculates quality matching scores with minScore, and routes raw secure stream URLs back to the client side.🎵 Fluid Local Playback: The incoming streaming track is processed natively by js/player.js without interruptions, tracking timelines, or loading third-party script trackers[cite: 1].❓ Common Problems & Troubleshooting📌 Error: Cannot find module 'express' or 'cors'Reason: The computer has not compiled your node environment packages locally.Fix: Run npm install express@4 cors dotenv axios inside your target folder to download the dependencies directly.📌 Error: ENOENT: no such file or directory, stat '...\index.html'Reason: You opened localhost:3000 directly in your browser. The backend only provides processing APIs and data parameters; it does not host a static web layout page.Fix: Keep the backend server running in the background, and open your frontend layout by launching index.html inside the webdite workspace folder[cite: 1].📌 PathError: Missing parameter name at index 1: *Reason: Express v5 has strict guidelines regarding wildcards.Fix: Run npm install express@4 to bind standard robust routing patterns securely.🛠️ Unified Full-Stack TechnologiesUI Layer: HTML5 Semantic Structure, Custom Mobile-Responsive CSS3 Layouts[cite: 1].Client Control Engine: Vanilla ES6+ JavaScript, Native Web Audio API, Firebase SDK Core[cite: 1].Backend Framework: Node.js Environment, Express.js Middleware Router Engine[cite: 1].Network Handlers: Axios HTTP Stream Resolution.Cloud Infrastructure: Vercel Hosting Engine, GitHub Pages Static Deployment Pipelines[cite: 1].📝 LicenseMIT — completely free to distribute, learn from, and scale across custom portfolios.
+└── vercel.json            # Handles configurations for live API routing endpoints
+```
+## 🎮 How to Use the App
+## 🔍 Discovery & Search: 
+Type any track or artist inside the search bar. The client application utilizes js/api.js to shoot requests to the backend server dynamically.
+
+## 🛡️ Content Proxying: 
+The backend checks the input parameters, scrapes links safely from external music nodes, calculates quality matching scores with minScore, and routes raw secure stream URLs back to the client side.
+
+## 🎵 Fluid Local Playback: 
+The incoming streaming track is processed natively by js/player.js without interruptions, tracking timelines, or loading third-party script trackers.
+
+## .❓ Common Problems & Troubleshooting
+
+## 📌 Error:
+Cannot find module 'express' or 'cors'Reason: The computer has not compiled your node environment packages locally.Fix: Run npm install express@4 cors dotenv axios inside your target folder to download the dependencies directly.
+
+## 📌 Error: 
+ENOENT: no such file or directory, stat '...\index.html'
+Reason: You opened localhost:3000 directly in your browser. The backend only provides processing APIs and data parameters; it does not host a static web layout page.Fix: Keep the backend server running in the background, and open your frontend layout by launching index.html inside the webdite workspace folder.
+
+## 📌 PathError: 
+Missing parameter name at index 1: *Reason: Express v5 has strict guidelines regarding wildcards.Fix: Run npm install express@4 to bind standard robust routing patterns securely.
+
+## 🛠️ Unified Full-Stack Technologies
+
+| Layer | Framework / Tech Used | Implementation Scope |
+| :--- | :--- | :--- |
+| **UI Layer** | `HTML5 Semantic Structure` + `CSS3` | Custom mobile-responsive interface layouts and smooth view scaling. |
+| **Client Control Engine** | `Vanilla ES6+ JavaScript` | Drives direct HTML5 media playback, native Web Audio API, and Firebase SDK core tracking. |
+| **Backend Framework** | `Node.js` + `Express.js Engine` | Manages server environment routines and configures core middleware router channels. |
+| **Network Handlers** | `Axios HTTP Stream` | Handles dynamic scraping parameters and secures audio link resolution queries. |
+| **Cloud Infrastructure**| `Vercel` + `GitHub Pages` | Manages live high-speed hosting engines and static deployment pipelines. |
+
+##📝 LicenseMIT —
+completely free to distribute, learn from, and scale across custom portfolios.
