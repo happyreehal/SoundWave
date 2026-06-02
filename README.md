@@ -35,7 +35,7 @@ Start the Node.js production streaming microservice:Bash   npm start
 You should see a clean interactive terminal console box indicating:🎵 SoundWave Pro — http://localhost:3000STEP 3 — Initialize and Run the Frontend UI WebsiteOpen a completely new secondary terminal window (do not close the backend terminal!).Head into the main web assets directory:Bash   cd C:\Users\happy\Desktop\webdite
 Install the application dependencies:Bash   npm install
 Launch your local developer tracking server:Bash   npm run dev
-(Alternatively, since it uses native frontend resources, you can simply go to the folder and double-click index.html to load the interface instantly!)  📁 Complete Workspace Directory Tree1. Frontend Architecture (WEBDITE)Plaintextwebdite/
+(Alternatively, since it uses native frontend resources, you can simply go to the folder and double-click index.html to load the interface instantly!)  📁 Complete Workspace Directory Tree1. Frontend Architecture (WEBDITE)webdite/
 ├── css/
 │   ├── animations.css     # UI transition mechanics
 │   ├── base.css           # Global resets and root variables
@@ -57,7 +57,7 @@ Launch your local developer tracking server:Bash   npm run dev
 ├── package.json           # Scripts and system package properties[cite: 1]
 ├── server.js              # Basic application local test script[cite: 1]
 └── vercel.json            # Deployment instructions for Vercel[cite: 1]
-2. Backend Routing Architecture (SOUNDWAVE-BACKEND)[cite: 1]Plaintextsoundwave-backend/
+2. Backend Routing Architecture (SOUNDWAVE-BACKEND)soundwave-backend/
 ├── api/
 │   ├── audius.js          # Processes Audius stream resolution logic[cite: 1]
 │   ├── health.js          # Basic endpoint tracking script[cite: 1]
