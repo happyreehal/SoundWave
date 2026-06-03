@@ -1,13 +1,12 @@
 /* ============================================================
-   API.JS — iTunes + Saavn + Audius + LRCLIB
-   Fixed: Fuzzy search, suggestions, better matching
+   API.JS — iTunes + Saavn + Audius + LRCLIB + Color extraction
 ============================================================ */
 const API = {
   ITUNES_BASE: "https://itunes.apple.com",
   LYRICS_BASE: "https://lrclib.net/api",
 
-  _cache:        new Map(),
-  _cacheExpiry:  5 * 60 * 1000,
+  _cache:       new Map(),
+  _cacheExpiry: 5 * 60 * 1000,
 
   SERVER:
     window.location.hostname === "happyreehal.github.io"
@@ -36,7 +35,7 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     SEARCH — iTunes (with fuzzy + suggestions support)
+     SEARCH (with multiple strategies)
   ═══════════════════════════════════════════════════════ */
   async search(query, limit = 20) {
     if (!query || !query.trim()) return [];
@@ -44,15 +43,14 @@ const API = {
     const cacheKey = query.toLowerCase().trim() + "_" + limit;
     const cached = this._cache.get(cacheKey);
     if (cached && Date.now() - cached.time < this._cacheExpiry) {
-      console.log("Cache hit:", query);
       return cached.data;
     }
 
     try {
-      // ✅ Try multiple query variations for better results
+      // Multiple query variations for better matching
       const queries = [
         query.trim(),
-        query.trim().split(" ").slice(0, 3).join(" "), // first 3 words
+        query.trim().split(" ").slice(0, 3).join(" "),
       ];
 
       let allResults = [];
@@ -98,8 +96,7 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     SEARCH SUGGESTIONS — for autocomplete dropdown
-     Returns lighter results faster
+     SEARCH SUGGESTIONS (fast, for autocomplete)
   ═══════════════════════════════════════════════════════ */
   async searchSuggestions(query, limit = 6) {
     if (!query || query.trim().length < 2) return [];
@@ -138,45 +135,63 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     GET PLAYABLE URL — Saavn → Audius → iTunes preview
+     "DID YOU MEAN?" suggestion
+     Returns a corrected query if results were poor
+  ═══════════════════════════════════════════════════════ */
+  async getDidYouMean(query, gotResults) {
+    if (!query || gotResults > 5) return null;
+
+    // Try with first word only
+    const firstWord = query.trim().split(" ")[0];
+    if (firstWord.length < 3) return null;
+
+    try {
+      const results = await this.searchSuggestions(firstWord, 3);
+      if (results && results.length > 0) {
+        // Suggest the artist of the first result
+        const artistName = results[0].artist;
+        if (artistName && artistName.toLowerCase() !== query.toLowerCase()) {
+          return artistName.split(",")[0].trim();
+        }
+      }
+    } catch (e) {}
+    return null;
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     GET PLAYABLE URL
   ═══════════════════════════════════════════════════════ */
   async getPlayableUrl(song) {
     if (!song) return null;
     console.log("🔍 Finding:", song.title, "-", song.artist);
 
-    // 1. JioSaavn (full songs, best for Indian + global)
     if (this.SERVER) {
       const url = await this.getSaavnFromServer(song);
-      if (url) { console.log("✅ JioSaavn full song!"); return url; }
+      if (url) { console.log("✅ JioSaavn"); return url; }
     }
 
-    // 2. Audius (fallback)
     if (this.SERVER) {
       const url = await this.getAudiusFromServer(song);
-      if (url) { console.log("✅ Audius via server!"); return url; }
+      if (url) { console.log("✅ Audius (server)"); return url; }
     }
 
     if (!this.SERVER) {
       const url = await this.getAudiusDirect(song);
-      if (url) { console.log("✅ Audius direct!"); return url; }
+      if (url) { console.log("✅ Audius (direct)"); return url; }
     }
 
-    // 3. iTunes 30sec preview (last resort)
     if (song.previewUrl) {
-      console.log("⚠️ iTunes 30sec preview only");
+      console.log("⚠️ iTunes 30sec preview");
       if (typeof UI !== "undefined") {
         UI.showToast("30sec preview only", "fas fa-info-circle", "yellow");
       }
       return song.previewUrl;
     }
 
-    console.warn("❌ No audio source found:", song.title);
+    console.warn("❌ No source found:", song.title);
     return null;
   },
 
-  /* ═══════════════════════════════════════════════════════
-     SAAVN via backend
-  ═══════════════════════════════════════════════════════ */
   async getSaavnFromServer(song) {
     try {
       const url =
@@ -188,7 +203,6 @@ const API = {
       const data = await this._fetchJsonWithTimeout(url, 15000);
 
       if (data && data.success && data.url) {
-        console.log("🎵 Saavn matched:", data.matched, "(sc:" + data.score + ")");
         return data.url;
       }
       return null;
@@ -198,9 +212,6 @@ const API = {
     }
   },
 
-  /* ═══════════════════════════════════════════════════════
-     AUDIUS via backend
-  ═══════════════════════════════════════════════════════ */
   async getAudiusFromServer(song) {
     try {
       const url =
@@ -210,7 +221,6 @@ const API = {
       const data = await this._fetchJsonWithTimeout(url, 12000);
 
       if (data && data.success && data.url) {
-        console.log("🎵 Audius matched:", data.matched);
         return data.url;
       }
       return null;
@@ -220,9 +230,6 @@ const API = {
     }
   },
 
-  /* ═══════════════════════════════════════════════════════
-     AUDIUS direct (browser fallback if no server)
-  ═══════════════════════════════════════════════════════ */
   async getAudiusDirect(song) {
     const query = song.title + " " + song.artist;
     for (const node of this.AUDIUS_NODES) {
@@ -250,7 +257,7 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     LYRICS — LRCLIB (3 strategies + 15s timeout)
+     LYRICS — LRCLIB (3 strategies)
   ═══════════════════════════════════════════════════════ */
   async getLyrics(song) {
     if (!song) return null;
@@ -328,7 +335,7 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     MATCH HELPER (with fuzzy fallback)
+     MATCH HELPER
   ═══════════════════════════════════════════════════════ */
   findBestMatch(items, title, artist, getTitle, getArtist) {
     const tT = this.clean(title);
@@ -389,7 +396,92 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     CHARTS (for home page sections)
+     COLOR EXTRACTION from album art
+     Returns dominant color as RGB string
+  ═══════════════════════════════════════════════════════ */
+  async extractColor(imageUrl) {
+    if (!imageUrl) return null;
+
+    // Cache colors
+    const cacheKey = "color_" + imageUrl;
+    const cached = this._cache.get(cacheKey);
+    if (cached) return cached.data;
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      const timer = setTimeout(() => resolve(null), 4000);
+
+      img.onload = () => {
+        clearTimeout(timer);
+        try {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = 50;
+          canvas.height = 50;
+          ctx.drawImage(img, 0, 0, 50, 50);
+
+          const pixels = ctx.getImageData(0, 0, 50, 50).data;
+          let r = 0, g = 0, b = 0, count = 0;
+
+          // Sample pixels
+          for (let i = 0; i < pixels.length; i += 16) {
+            const pr = pixels[i];
+            const pg = pixels[i + 1];
+            const pb = pixels[i + 2];
+            const pa = pixels[i + 3];
+            if (pa < 200) continue;
+            // Skip very dark/light pixels
+            const brightness = (pr + pg + pb) / 3;
+            if (brightness < 30 || brightness > 230) continue;
+
+            r += pr;
+            g += pg;
+            b += pb;
+            count++;
+          }
+
+          if (count === 0) {
+            resolve(null);
+            return;
+          }
+
+          r = Math.round(r / count);
+          g = Math.round(g / count);
+          b = Math.round(b / count);
+
+          // Boost saturation for premium look
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          if (max - min < 30) {
+            // Too gray, boost
+            const dominant = r >= g && r >= b ? 'r' : (g >= b ? 'g' : 'b');
+            if (dominant === 'r') r = Math.min(255, r + 40);
+            else if (dominant === 'g') g = Math.min(255, g + 40);
+            else b = Math.min(255, b + 40);
+          }
+
+          const color = `rgb(${r}, ${g}, ${b})`;
+          this._cache.set(cacheKey, { data: color, time: Date.now() });
+          resolve(color);
+        } catch (e) {
+          console.warn("Color extract error:", e.message);
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(null);
+      };
+
+      img.src = imageUrl;
+    });
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     CHARTS
   ═══════════════════════════════════════════════════════ */
   async getCharts(limit = 20) {
     try {
@@ -406,7 +498,7 @@ const API = {
   ═══════════════════════════════════════════════════════ */
   async testConnection() {
     console.log("Testing connections...");
-    console.log("Mode:", this.SERVER ? "Backend (Full songs)" : "Browser only (30sec previews)");
+    console.log("Mode:", this.SERVER ? "Backend (Full songs)" : "Browser only");
     console.log("SERVER URL:", this.SERVER);
     if (this.SERVER) {
       try {

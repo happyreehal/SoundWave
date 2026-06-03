@@ -1,6 +1,6 @@
 /* ============================================================
    UI.JS — Rendering, Navigation, Display Logic
-   Fixed: Mobile nav, fullscreen close, premium playlists
+   + Mini player auto-hide, Color-adaptive, Stats
 ============================================================ */
 
 window.__songRegistry = window.__songRegistry || {};
@@ -58,26 +58,18 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     NAVIGATION — Fixed for mobile
-     - Closes fullscreen player if open
-     - Closes lyrics/queue overlays
-     - Gaana chalta rahe (audio nahi rukta)
+     NAVIGATION — Mobile fix (close fullscreen + keep audio)
   ═══════════════════════════════════════════════════════ */
   navigate(page) {
-    // ✅ Step 1: Close fullscreen player if open
     this.closeFullscreen();
-
-    // ✅ Step 2: Navigate to page
     this.navigateTo(page);
 
-    // ✅ Step 3: Page-specific actions
     if (page === "library") this.renderLibrary();
     if (page === "search") {
       const si = document.getElementById("search-input");
       if (si && !this.isMobile()) si.focus();
     }
 
-    // ✅ Step 4: Update mobile nav active state
     document.querySelectorAll(".mob-nav-btn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.page === page);
     });
@@ -99,9 +91,9 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     NOW PLAYING
+     NOW PLAYING + Color adaptive
   ═══════════════════════════════════════════════════════ */
-  updateNowPlaying(song) {
+  async updateNowPlaying(song) {
     const artEl    = document.querySelector(".now-playing-art");
     const titleEl  = document.querySelector(".np-title");
     const artistEl = document.querySelector(".np-artist");
@@ -125,9 +117,13 @@ const UI = {
     const curEl = document.querySelector(".time-lbl.current");
     if (curEl) curEl.textContent = "0:00";
 
+    // Mini progress reset
+    const miniFill = document.querySelector(".mini-progress-fill");
+    if (miniFill) miniFill.style.width = "0%";
+
     this.updateLikeBtn(State.liked.has(song.id));
 
-    // Fullscreen player meta
+    // Fullscreen
     const fsTitle  = document.querySelector(".fs-title");
     const fsArtist = document.querySelector(".fs-artist");
     const fsArt    = document.querySelector(".fs-art");
@@ -144,6 +140,29 @@ const UI = {
     if (fsBg && song.artwork) fsBg.style.backgroundImage = "url(" + song.artwork + ")";
 
     document.title = song.title + " — SoundWave Pro";
+
+    // ✅ Color-adaptive background
+    if (song.artwork) {
+      this.applyAdaptiveColor(song.artwork);
+    }
+  },
+
+  /* Extract & apply color to fullscreen player */
+  async applyAdaptiveColor(artworkUrl) {
+    try {
+      const color = await API.extractColor(artworkUrl);
+      if (color) {
+        document.documentElement.style.setProperty('--dynamic-color', color);
+        // Apply tint to fullscreen background
+        const fsBg = document.querySelector('.fs-bg');
+        if (fsBg) {
+          fsBg.classList.add('color-tint');
+          fsBg.style.background = `linear-gradient(180deg, ${color} 0%, rgba(0,0,0,0.85) 60%, #000 100%)`;
+        }
+      }
+    } catch (e) {
+      console.warn("Color adapt failed:", e.message);
+    }
   },
 
   updateDuration(sec) {
@@ -209,32 +228,36 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     RENDER CARD (Song)
+     RENDER CARD
   ═══════════════════════════════════════════════════════ */
   renderCard(song, index, songs) {
     if (songs) songs.forEach(s => UI._registerSong(s));
     this._registerSong(song);
 
+    // ✅ Pass song ID directly to avoid context bugs
     return (
-      '<div class="card stagger-item" onclick="Player.playSong(window.__songRegistry[\'s_' + song.id +
-      '\'])" oncontextmenu="ContextMenu.open(event, ' + index + ')" data-id="' + song.id + '">' +
-      '<div class="card-thumb">' +
-      (song.artwork
-        ? '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
-          '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)>🎵</div>\'" loading="lazy">'
-        : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
-      (song.explicit ? '<div class="card-badge">E</div>' : "") +
-      "</div>" +
-      '<div class="card-title">' + this.escHtml(song.title) + "</div>" +
-      '<div class="card-sub">' + this.escHtml(song.artist) + "</div>" +
-      '<button class="card-play" onclick="event.stopPropagation(); Player.playSong(window.__songRegistry[\'s_' + song.id + '\'])">' +
-      '<i class="fas fa-play"></i></button>' +
-      "</div>"
+      '<div class="card stagger-item" ' +
+      'onclick="Player.playFromRegistry(\'' + song.id + '\')" ' +
+      'oncontextmenu="ContextMenu.openForSong(event, \'' + song.id + '\')" ' +
+      'data-id="' + song.id + '">' +
+        '<div class="card-thumb">' +
+        (song.artwork
+          ? '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
+            '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)>🎵</div>\'" loading="lazy">'
+          : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
+        (song.explicit ? '<div class="card-badge">E</div>' : "") +
+        '</div>' +
+        '<div class="card-title">' + this.escHtml(song.title) + '</div>' +
+        '<div class="card-sub">' + this.escHtml(song.artist) + '</div>' +
+        '<button class="card-play" onclick="event.stopPropagation(); Player.playFromRegistry(\'' + song.id + '\')">' +
+          '<i class="fas fa-play"></i>' +
+        '</button>' +
+      '</div>'
     );
   },
 
   /* ═══════════════════════════════════════════════════════
-     RENDER PLAYLIST CARD (Premium gradient)
+     RENDER PLAYLIST CARD
   ═══════════════════════════════════════════════════════ */
   renderPlaylistCard(pl) {
     const coverClass = pl.coverGradient || "gradient-1";
@@ -263,9 +286,10 @@ const UI = {
     const active = State.currentSong && State.currentSong.id === song.id;
 
     return (
-      '<div class="song-row ' + (active ? "active" : "") +
-      '" onclick="Player.playSong(window.__songRegistry[\'s_' + song.id + '\'])" ' +
-      'oncontextmenu="ContextMenu.open(event, ' + index + ')" data-id="' + song.id + '">' +
+      '<div class="song-row ' + (active ? "active" : "") + '" ' +
+      'onclick="Player.playFromRegistry(\'' + song.id + '\')" ' +
+      'oncontextmenu="ContextMenu.openForSong(event, \'' + song.id + '\')" ' +
+      'data-id="' + song.id + '">' +
         '<div class="song-num">' +
           '<span class="song-num-text">' + (index + 1) + '</span>' +
           '<span class="song-play-btn"><i class="fas ' + (active ? "fa-pause" : "fa-play") + '"></i></span>' +
@@ -283,9 +307,8 @@ const UI = {
         '</div>' +
         '<div class="song-album secondary truncate">' + this.escHtml(song.album || "") + '</div>' +
         '<div class="song-duration">' + this.formatTime(song.duration) + '</div>' +
-        '<div class="song-heart ' + (liked ? "liked" : "") +
-        '" onclick="event.stopPropagation(); State.toggleLike(\'' + song.id +
-        '\'); UI.refreshSongHeart(\'' + song.id + '\');">' +
+        '<div class="song-heart ' + (liked ? "liked" : "") + '" ' +
+        'onclick="event.stopPropagation(); State.toggleLike(\'' + song.id + '\'); UI.refreshSongHeart(\'' + song.id + '\');">' +
           '<i class="' + (liked ? "fas" : "far") + ' fa-heart"></i>' +
         '</div>' +
       '</div>'
@@ -298,7 +321,6 @@ const UI = {
       el.classList.toggle("liked", liked);
       el.innerHTML = '<i class="' + (liked ? "fas" : "far") + ' fa-heart"></i>';
     });
-    // Also update like button if it's the current song
     if (State.currentSong && State.currentSong.id === songId) {
       this.updateLikeBtn(liked);
     }
@@ -322,7 +344,7 @@ const UI = {
     }
 
     const current = State.currentSong;
-    const upcoming = State.queue.slice(State.queueIndex + 1, State.queueIndex + 20);
+    const upcoming = State.queue.slice(State.queueIndex + 1, State.queueIndex + 30);
     let html = "";
 
     if (current) {
@@ -341,7 +363,6 @@ const UI = {
     if (scroll) scroll.innerHTML = html;
     if (fsList) fsList.innerHTML = html;
 
-    // Update count in fullscreen queue header
     const countEl = document.getElementById("fs-queue-count");
     if (countEl) {
       const total = State.queue.length;
@@ -368,7 +389,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     LIBRARY PAGE
+     LIBRARY
   ═══════════════════════════════════════════════════════ */
   renderLibrary() {
     const page = document.getElementById("page-library");
@@ -388,7 +409,6 @@ const UI = {
         '</button>' +
       '</div>';
 
-    // Playlists section
     if (playlists.length > 0) {
       html +=
         '<div class="section-header" style="margin-top:24px;">' +
@@ -401,7 +421,6 @@ const UI = {
       html += "</div>";
     }
 
-    // Liked songs section
     if (liked.length === 0 && playlists.length === 0) {
       html +=
         '<div class="empty-state" style="margin-top:40px;">' +
@@ -434,7 +453,6 @@ const UI = {
       .filter(Boolean);
 
     if (likedSongs.length < liked.length) {
-      // Fetch missing songs from iTunes
       html += '<div style="text-align:center;padding:20px;"><div class="spinner" style="margin:0 auto 12px;"></div>Loading your songs...</div>';
       page.innerHTML = html;
 
@@ -488,7 +506,6 @@ const UI = {
     const liked = [...State.liked];
     const allItems = [];
 
-    // Add playlists first
     State.playlists.forEach(pl => {
       allItems.push({
         type: "playlist",
@@ -500,7 +517,6 @@ const UI = {
       });
     });
 
-    // Add songs
     [...songs].forEach(s => {
       if (!allItems.find(i => i.type === "song" && i.id === s.id)) {
         allItems.push({
@@ -563,7 +579,7 @@ const UI = {
       } else {
         UI._registerSong(item.songRef);
         html +=
-          '<div class="library-item" onclick="Player.playSong(window.__songRegistry[\'s_' + item.id + '\'])">' +
+          '<div class="library-item" onclick="Player.playFromRegistry(\'' + item.id + '\')">' +
             '<div class="library-thumb">' +
             (item.artwork
               ? '<img src="' + item.artwork + '" alt="" loading="lazy" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg-elevated)>🎵</div>\'">'
@@ -576,6 +592,97 @@ const UI = {
           '</div>';
       }
     });
+
+    container.innerHTML = html;
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     LISTENING STATS RENDER
+  ═══════════════════════════════════════════════════════ */
+  renderStats() {
+    const container = document.getElementById("stats-content");
+    if (!container) return;
+
+    const time = State.getTotalListenTime();
+    const topSongs   = State.getTopSongs(5);
+    const topArtists = State.getTopArtists(5);
+    const topGenres  = State.getTopGenres(3);
+    const totalSongs = Object.keys(State.songPlayCounts).length;
+
+    let html =
+      '<div class="stats-grid">' +
+        '<div class="stat-card">' +
+          '<i class="fas fa-clock stat-icon"></i>' +
+          '<div class="stat-value">' + (time.hours > 0 ? time.hours + 'h ' : '') + time.minutes + 'm</div>' +
+          '<div class="stat-label">Total Time</div>' +
+        '</div>' +
+        '<div class="stat-card">' +
+          '<i class="fas fa-music stat-icon"></i>' +
+          '<div class="stat-value">' + totalSongs + '</div>' +
+          '<div class="stat-label">Unique Songs</div>' +
+        '</div>' +
+        '<div class="stat-card">' +
+          '<i class="fas fa-heart stat-icon"></i>' +
+          '<div class="stat-value">' + State.liked.size + '</div>' +
+          '<div class="stat-label">Liked Songs</div>' +
+        '</div>' +
+        '<div class="stat-card">' +
+          '<i class="fas fa-list-ul stat-icon"></i>' +
+          '<div class="stat-value">' + State.playlists.length + '</div>' +
+          '<div class="stat-label">Playlists</div>' +
+        '</div>' +
+      '</div>';
+
+    if (topSongs.length > 0) {
+      html += '<div class="stat-list">';
+      html += '<div class="stat-list-header">🔥 Most Played Songs</div>';
+      topSongs.forEach((s, i) => {
+        html +=
+          '<div class="stat-list-item">' +
+            '<div class="stat-list-rank">' + (i + 1) + '</div>' +
+            '<div class="stat-list-name">' + UI.escHtml(s.title) + ' — <span style="opacity:0.6;">' + UI.escHtml(s.artist) + '</span></div>' +
+            '<div class="stat-list-count">' + s.count + 'x</div>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
+
+    if (topArtists.length > 0) {
+      html += '<div class="stat-list">';
+      html += '<div class="stat-list-header">🎤 Top Artists</div>';
+      topArtists.forEach((a, i) => {
+        html +=
+          '<div class="stat-list-item">' +
+            '<div class="stat-list-rank">' + (i + 1) + '</div>' +
+            '<div class="stat-list-name">' + UI.escHtml(a.name) + '</div>' +
+            '<div class="stat-list-count">' + a.count + ' plays</div>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
+
+    if (topGenres.length > 0) {
+      html += '<div class="stat-list">';
+      html += '<div class="stat-list-header">🎵 Favorite Genres</div>';
+      topGenres.forEach((g, i) => {
+        html +=
+          '<div class="stat-list-item">' +
+            '<div class="stat-list-rank">' + (i + 1) + '</div>' +
+            '<div class="stat-list-name">' + UI.escHtml(g.name) + '</div>' +
+            '<div class="stat-list-count">' + g.count + ' plays</div>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
+
+    if (totalSongs === 0) {
+      html =
+        '<div class="empty-state">' +
+          '<i class="fas fa-chart-line empty-icon"></i>' +
+          '<h3>No stats yet</h3>' +
+          '<p>Start listening to music to see your stats here!</p>' +
+        '</div>';
+    }
 
     container.innerHTML = html;
   },
@@ -614,15 +721,14 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     FULLSCREEN PLAYER
+     FULLSCREEN PLAYER (with mini player hide)
   ═══════════════════════════════════════════════════════ */
   openFullscreen() {
     const el = document.getElementById("fullscreen-player");
     if (!el) return;
     el.classList.add("open");
-    document.body.style.overflow = "hidden";
+    document.body.classList.add("fs-open");
 
-    // Update mobile nav (player tab active)
     document.querySelectorAll(".mob-nav-btn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.page === "player");
     });
@@ -631,14 +737,13 @@ const UI = {
   closeFullscreen() {
     const el = document.getElementById("fullscreen-player");
     if (el) el.classList.remove("open");
-    document.body.style.overflow = "";
+    document.body.classList.remove("fs-open");
     this.closeFsLyrics();
     this.closeFsQueue();
   },
 
-  /* Fullscreen Lyrics Overlay */
+  /* Fullscreen Lyrics */
   openFsLyrics() {
-    // Ensure fullscreen is open
     const fs = document.getElementById("fullscreen-player");
     if (fs && !fs.classList.contains("open")) this.openFullscreen();
 
@@ -651,14 +756,12 @@ const UI = {
     if (t2) t2.textContent = song ? song.title : "Lyrics";
     if (a2) a2.textContent = song ? song.artist : "—";
 
-    // Copy lyrics from right panel
     const src = document.getElementById("lyrics-lines");
     const dst = document.getElementById("fs-lyrics-lines");
     if (src && dst) dst.innerHTML = src.innerHTML;
 
     panel.classList.remove("hidden");
 
-    // Apply current highlight
     if (typeof Lyrics !== "undefined") {
       Lyrics.highlightLine(State.currentTime || 0);
     }
@@ -669,7 +772,7 @@ const UI = {
     if (panel) panel.classList.add("hidden");
   },
 
-  /* Fullscreen Queue Overlay */
+  /* Fullscreen Queue */
   openFsQueue() {
     const fs = document.getElementById("fullscreen-player");
     if (fs && !fs.classList.contains("open")) this.openFullscreen();
@@ -686,22 +789,10 @@ const UI = {
     if (panel) panel.classList.add("hidden");
   },
 
-  openFsMenu() {
-    // Show context menu for current song
-    if (!State.currentSong) return;
-    const fakeEvent = {
-      preventDefault: () => {},
-      clientX: window.innerWidth / 2 - 100,
-      clientY: window.innerHeight / 2,
-    };
-    ContextMenu.open(fakeEvent, State.queueIndex);
-  },
-
   /* ═══════════════════════════════════════════════════════
      RIGHT PANEL SWITCH
   ═══════════════════════════════════════════════════════ */
   switchRightPanel(name) {
-    // On mobile, route to fullscreen overlays
     if (this.isMobile()) {
       if (name === "lyrics") return this.openFsLyrics();
       if (name === "queue")  return this.openFsQueue();
@@ -719,7 +810,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     SHARE LINK
+     SHARE
   ═══════════════════════════════════════════════════════ */
   showShare(url, title) {
     const linkInput = document.getElementById("share-link");
@@ -732,7 +823,7 @@ const UI = {
     if (!linkInput) return;
     linkInput.select();
     navigator.clipboard.writeText(linkInput.value).then(() => {
-      UI.showToast("Link copied to clipboard!", "fas fa-check", "green");
+      UI.showToast("Link copied!", "fas fa-check", "green");
       closeModal("modal-share");
     });
   },

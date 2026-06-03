@@ -1,6 +1,6 @@
 /* ============================================================
    STATE — Single Source of Truth
-   Fixed: User isolation, playlists save, search history
+   + Auto-continue playback, Listening stats
 ============================================================ */
 const State = {
   // Playback
@@ -8,7 +8,7 @@ const State = {
   queueIndex:     -1,
   isPlaying:      false,
   isShuffle:      false,
-  repeatMode:     0,        // 0=off, 1=all, 2=one
+  repeatMode:     0,
   volume:         0.7,
   isMuted:        false,
   prevVolume:     0.7,
@@ -22,6 +22,15 @@ const State = {
   recentlyPlayed: [],
   searchHistory:  [],
 
+  // Stats
+  totalListenSeconds: 0,
+  songPlayCounts:     {},  // { songId: { count, title, artist, artwork, lastPlayed } }
+  artistPlayCounts:   {},  // { artistName: count }
+  genrePlayCounts:    {},  // { genre: count }
+
+  // Auto-continue
+  lastSession: null,  // { song, currentTime, queue, queueIndex }
+
   // UI
   currentPage:    "home",
   rightPanel:     "queue",
@@ -29,24 +38,23 @@ const State = {
   // Features
   sleepTimer:     null,
   sleepRemaining: 0,
+  sleepEndOfSong: false,
   eqValues:       [0,0,0,0,0,0,0,0,0,0],
-  crossfade:      false,
 
   // Auth
   currentUser:    null,
   isGuest:        false,
 
-  /* ═══════════════════════════════════════════════════════
-     COMPUTED
-  ═══════════════════════════════════════════════════════ */
+  // Internal
+  _saveTimer: null,
+  _sessionSaveTimer: null,
+
   get currentSong() {
     return this.queue[this.queueIndex] || null;
   },
 
   /* ═══════════════════════════════════════════════════════
-     STORAGE KEY (user-specific)
-     - Logged in user: sw_data_<uid>
-     - Guest: sw_data_guest
+     STORAGE KEYS
   ═══════════════════════════════════════════════════════ */
   _getStorageKey() {
     if (this.currentUser && this.currentUser.uid) {
@@ -55,60 +63,122 @@ const State = {
     return "sw_data_guest";
   },
 
+  _getSessionKey() {
+    if (this.currentUser && this.currentUser.uid) {
+      return "sw_session_" + this.currentUser.uid;
+    }
+    return "sw_session_guest";
+  },
+
   /* ═══════════════════════════════════════════════════════
-     SAVE TO LOCALSTORAGE + FIREBASE (if logged in)
+     SAVE
   ═══════════════════════════════════════════════════════ */
   save() {
     try {
       const data = {
-        liked:          [...this.liked],
-        playlists:      this.playlists,
-        recentlyPlayed: this.recentlyPlayed.slice(0, 30),
-        searchHistory:  this.searchHistory.slice(0, 20),
-        volume:         this.volume,
+        liked:              [...this.liked],
+        playlists:          this.playlists,
+        recentlyPlayed:     this.recentlyPlayed.slice(0, 30),
+        searchHistory:      this.searchHistory.slice(0, 20),
+        volume:             this.volume,
+        totalListenSeconds: this.totalListenSeconds,
+        songPlayCounts:     this.songPlayCounts,
+        artistPlayCounts:   this.artistPlayCounts,
+        genrePlayCounts:    this.genrePlayCounts,
       };
       localStorage.setItem(this._getStorageKey(), JSON.stringify(data));
 
-      // ✅ Auto-sync to Firebase (debounced)
+      // Firebase sync (debounced)
       if (this.currentUser && !this.isGuest && typeof FB !== "undefined") {
         if (this._saveTimer) clearTimeout(this._saveTimer);
         this._saveTimer = setTimeout(() => {
           FB.saveUserData();
-        }, 800);
+        }, 1000);
       }
     } catch (e) {
       console.warn("State save error:", e.message);
     }
   },
 
+  /* Save current session for auto-continue */
+  saveSession() {
+    try {
+      if (!this.currentSong) return;
+      const session = {
+        song:        this.currentSong,
+        currentTime: this.currentTime,
+        queue:       this.queue.slice(0, 50),  // limit
+        queueIndex:  this.queueIndex,
+        timestamp:   Date.now(),
+      };
+      localStorage.setItem(this._getSessionKey(), JSON.stringify(session));
+    } catch (e) {
+      console.warn("Session save error:", e.message);
+    }
+  },
+
+  loadSession() {
+    try {
+      const raw = localStorage.getItem(this._getSessionKey());
+      if (!raw) return null;
+      const session = JSON.parse(raw);
+      // Don't restore if older than 24 hours
+      if (Date.now() - session.timestamp > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(this._getSessionKey());
+        return null;
+      }
+      this.lastSession = session;
+      return session;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  clearSession() {
+    localStorage.removeItem(this._getSessionKey());
+    this.lastSession = null;
+  },
+
   /* ═══════════════════════════════════════════════════════
-     LOAD FROM LOCALSTORAGE
+     LOAD
   ═══════════════════════════════════════════════════════ */
   load() {
     try {
       const raw = localStorage.getItem(this._getStorageKey());
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (data.liked)          this.liked          = new Set(data.liked);
-      if (data.playlists)      this.playlists      = data.playlists;
-      if (data.recentlyPlayed) this.recentlyPlayed = data.recentlyPlayed;
-      if (data.searchHistory)  this.searchHistory  = data.searchHistory;
-      if (typeof data.volume === "number") this.volume = data.volume;
+      if (data.liked)              this.liked              = new Set(data.liked);
+      if (data.playlists)          this.playlists          = data.playlists;
+      if (data.recentlyPlayed)     this.recentlyPlayed     = data.recentlyPlayed;
+      if (data.searchHistory)      this.searchHistory      = data.searchHistory;
+      if (typeof data.volume === "number") this.volume     = data.volume;
+      if (data.totalListenSeconds) this.totalListenSeconds = data.totalListenSeconds;
+      if (data.songPlayCounts)     this.songPlayCounts     = data.songPlayCounts;
+      if (data.artistPlayCounts)   this.artistPlayCounts   = data.artistPlayCounts;
+      if (data.genrePlayCounts)    this.genrePlayCounts    = data.genrePlayCounts;
+
+      // Load session
+      this.loadSession();
     } catch (e) {
       console.warn("State load error:", e.message);
     }
   },
 
   /* ═══════════════════════════════════════════════════════
-     CLEAR ALL USER DATA (on logout / user switch)
+     CLEAR USER DATA (on logout)
   ═══════════════════════════════════════════════════════ */
   clearUserData() {
-    this.liked          = new Set();
-    this.playlists      = [];
-    this.recentlyPlayed = [];
-    this.searchHistory  = [];
-    this.queue          = [];
-    this.queueIndex     = -1;
+    this.liked              = new Set();
+    this.playlists          = [];
+    this.recentlyPlayed     = [];
+    this.searchHistory      = [];
+    this.totalListenSeconds = 0;
+    this.songPlayCounts     = {};
+    this.artistPlayCounts   = {};
+    this.genrePlayCounts    = {};
+    this.queue              = [];
+    this.queueIndex         = -1;
+    this.lastSession        = null;
   },
 
   /* ═══════════════════════════════════════════════════════
@@ -120,7 +190,7 @@ const State = {
       id,
       name,
       songs: [],
-      cover: null,         // auto-set from first song
+      cover: null,
       coverGradient: this._randomGradient(),
       createdAt: new Date().toISOString(),
     };
@@ -145,10 +215,22 @@ const State = {
   addToPlaylist(playlistId, song) {
     const pl = this.playlists.find(p => p.id === playlistId);
     if (!pl) return false;
-    if (pl.songs.find(s => s.id === song.id)) return false; // already exists
-    pl.songs.push(song);
+    if (pl.songs.find(s => s.id === song.id)) return false;
 
-    // Auto-set cover from first song
+    // ✅ Store full song object (deep copy)
+    pl.songs.push({
+      id:         song.id,
+      title:      song.title,
+      artist:     song.artist,
+      album:      song.album || "",
+      duration:   song.duration || 0,
+      artwork:    song.artwork || "",
+      previewUrl: song.previewUrl || null,
+      genre:      song.genre || "Music",
+      itunesUrl:  song.itunesUrl || "",
+      source:     song.source || "itunes",
+    });
+
     if (!pl.cover && song.artwork) {
       pl.cover = song.artwork;
     }
@@ -161,7 +243,6 @@ const State = {
     if (!pl) return;
     pl.songs = pl.songs.filter(s => s.id !== songId);
 
-    // Update cover if removed song was the cover
     if (pl.songs.length > 0 && pl.songs[0].artwork) {
       pl.cover = pl.songs[0].artwork;
     } else if (pl.songs.length === 0) {
@@ -189,8 +270,21 @@ const State = {
   ═══════════════════════════════════════════════════════ */
   addToRecent(song) {
     if (!song || !song.id) return;
+    // Store full deep copy
+    const songCopy = {
+      id:         song.id,
+      title:      song.title,
+      artist:     song.artist,
+      album:      song.album || "",
+      duration:   song.duration || 0,
+      artwork:    song.artwork || "",
+      previewUrl: song.previewUrl || null,
+      genre:      song.genre || "Music",
+      itunesUrl:  song.itunesUrl || "",
+      source:     song.source || "itunes",
+    };
     this.recentlyPlayed = [
-      song,
+      songCopy,
       ...this.recentlyPlayed.filter(s => s.id !== song.id)
     ].slice(0, 30);
     this.save();
@@ -201,10 +295,10 @@ const State = {
   ═══════════════════════════════════════════════════════ */
   addToSearchHistory(query) {
     if (!query || !query.trim()) return;
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     this.searchHistory = [
-      query.trim(),
-      ...this.searchHistory.filter(s => s.toLowerCase() !== q)
+      q,
+      ...this.searchHistory.filter(s => s.toLowerCase() !== q.toLowerCase())
     ].slice(0, 20);
     this.save();
   },
@@ -215,7 +309,7 @@ const State = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     QUEUE MANAGEMENT
+     QUEUE
   ═══════════════════════════════════════════════════════ */
   addToQueue(song) {
     this.queue.push(song);
@@ -225,7 +319,79 @@ const State = {
     this.queue.splice(index, 1);
     if (index < this.queueIndex) this.queueIndex--;
   },
+
+  /* ═══════════════════════════════════════════════════════
+     LISTENING STATS
+  ═══════════════════════════════════════════════════════ */
+  trackListening(seconds) {
+    this.totalListenSeconds += seconds;
+    // Save less frequently (every 30 seconds)
+    if (this.totalListenSeconds % 30 < 1) {
+      this.save();
+    }
+  },
+
+  trackSongPlay(song) {
+    if (!song || !song.id) return;
+
+    // Song count
+    if (!this.songPlayCounts[song.id]) {
+      this.songPlayCounts[song.id] = {
+        count:      0,
+        title:      song.title,
+        artist:     song.artist,
+        artwork:    song.artwork,
+        lastPlayed: Date.now(),
+      };
+    }
+    this.songPlayCounts[song.id].count++;
+    this.songPlayCounts[song.id].lastPlayed = Date.now();
+
+    // Artist count
+    if (song.artist) {
+      const artists = song.artist.split(/[,&]/).map(a => a.trim()).filter(Boolean);
+      artists.forEach(artist => {
+        this.artistPlayCounts[artist] = (this.artistPlayCounts[artist] || 0) + 1;
+      });
+    }
+
+    // Genre count
+    if (song.genre) {
+      this.genrePlayCounts[song.genre] = (this.genrePlayCounts[song.genre] || 0) + 1;
+    }
+
+    this.save();
+  },
+
+  /* Get top stats */
+  getTopSongs(limit = 5) {
+    return Object.entries(this.songPlayCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, limit)
+      .map(([id, data]) => ({ id, ...data }));
+  },
+
+  getTopArtists(limit = 5) {
+    return Object.entries(this.artistPlayCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([name, count]) => ({ name, count }));
+  },
+
+  getTopGenres(limit = 3) {
+    return Object.entries(this.genrePlayCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([name, count]) => ({ name, count }));
+  },
+
+  getTotalListenTime() {
+    const sec = this.totalListenSeconds;
+    const hours = Math.floor(sec / 3600);
+    const minutes = Math.floor((sec % 3600) / 60);
+    return { hours, minutes, totalSeconds: sec };
+  },
 };
 
-// Initial load (will load guest data if no user logged in yet)
+// Initial load (guest data, will be overridden on login)
 State.load();

@@ -1,6 +1,6 @@
 /* ============================================================
    FIREBASE — Auth + Firestore
-   Fixed: User isolation, proper save/load, welcome animation
+   User isolation + Stats sync + Welcome flow
 ============================================================ */
 const firebaseConfig = {
   apiKey:            "AIzaSyBu1HZPsFGBkU67tKczcsTwYCr80jJntBo",
@@ -17,11 +17,12 @@ const auth = firebase.auth();
 const db   = firebase.firestore();
 
 const FB = {
-  _signingIn: false,
+  _signingIn:      false,
   _saveInProgress: false,
+  _isFirstLogin:   false,
 
   /* ═══════════════════════════════════════════════════════
-     SIGN IN (Google Popup)
+     SIGN IN
   ═══════════════════════════════════════════════════════ */
   async signIn() {
     if (this._signingIn) return;
@@ -33,12 +34,15 @@ const FB = {
     try {
       const result = await auth.signInWithPopup(provider);
       console.log("✅ Signed in:", result.user.displayName);
+
+      // Detect first login (new user)
+      this._isFirstLogin = result.additionalUserInfo?.isNewUser || false;
     } catch (e) {
       if (
         e.code === 'auth/cancelled-popup-request' ||
         e.code === 'auth/popup-closed-by-user'
       ) {
-        console.log("Popup closed by user — OK");
+        console.log("Popup closed by user");
       } else {
         console.error("Sign in error:", e);
         if (typeof UI !== "undefined") {
@@ -55,30 +59,34 @@ const FB = {
   ═══════════════════════════════════════════════════════ */
   async signOut() {
     try {
-      // Save current data before signing out
+      // Save current data first
       if (auth.currentUser) {
         await this.saveUserData();
       }
 
       await auth.signOut();
 
-      // ✅ Clear all user data
+      // Clear state
       State.clearUserData();
+      State.clearSession();
       State.currentUser = null;
       State.isGuest = false;
 
-      // ✅ Clear localStorage of this user
+      // Clear ALL sw_data_* keys from localStorage
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith("sw_data_")) {
+        if (key && (key.startsWith("sw_data_") || key.startsWith("sw_session_"))) {
           keysToRemove.push(key);
         }
       }
       keysToRemove.forEach(k => localStorage.removeItem(k));
 
+      // Clear song registry
+      window.__songRegistry = {};
+
       if (typeof UI !== "undefined") {
-        UI.showToast("Signed out successfully", "fas fa-sign-out-alt", "blue");
+        UI.showToast("Signed out", "fas fa-sign-out-alt", "blue");
       }
 
       setTimeout(() => location.reload(), 800);
@@ -88,7 +96,7 @@ const FB = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     SAVE USER DATA TO FIRESTORE
+     SAVE TO FIRESTORE
   ═══════════════════════════════════════════════════════ */
   async saveUserData() {
     const user = auth.currentUser;
@@ -96,7 +104,7 @@ const FB = {
     this._saveInProgress = true;
 
     try {
-      // Build liked songs data (full song info, not just IDs)
+      // Build liked songs data
       const likedSongsData = [...State.liked].map(id => {
         const song =
           (window.__songRegistry && window.__songRegistry["s_" + id]) ||
@@ -116,16 +124,20 @@ const FB = {
       });
 
       await db.collection("users").doc(user.uid).set({
-        liked:          [...State.liked],
-        likedSongs:     likedSongsData,
-        playlists:      State.playlists,
-        recentlyPlayed: State.recentlyPlayed.slice(0, 30),
-        searchHistory:  State.searchHistory.slice(0, 20),
-        volume:         State.volume,
-        updatedAt:      firebase.firestore.FieldValue.serverTimestamp(),
+        liked:              [...State.liked],
+        likedSongs:         likedSongsData,
+        playlists:          State.playlists,
+        recentlyPlayed:     State.recentlyPlayed.slice(0, 30),
+        searchHistory:      State.searchHistory.slice(0, 20),
+        volume:             State.volume,
+        totalListenSeconds: State.totalListenSeconds,
+        songPlayCounts:     State.songPlayCounts,
+        artistPlayCounts:   State.artistPlayCounts,
+        genrePlayCounts:    State.genrePlayCounts,
+        updatedAt:          firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      console.log("☁️ Saved to cloud for", user.displayName || user.uid);
+      console.log("☁️ Synced to cloud:", user.displayName || user.uid);
     } catch (e) {
       console.error("Save error:", e);
     } finally {
@@ -134,7 +146,7 @@ const FB = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     LOAD USER DATA FROM FIRESTORE
+     LOAD FROM FIRESTORE
   ═══════════════════════════════════════════════════════ */
   async loadUserData() {
     const user = auth.currentUser;
@@ -143,36 +155,60 @@ const FB = {
     try {
       const snap = await db.collection("users").doc(user.uid).get();
       if (!snap.exists) {
-        console.log("New user — no cloud data yet");
+        console.log("New user — no cloud data");
         return;
       }
 
       const data = snap.data();
 
-      // Reset state first (clean slate)
+      // Clean slate
       State.clearUserData();
 
       // Load from cloud
-      if (data.liked)          State.liked          = new Set(data.liked);
-      if (data.playlists)      State.playlists      = data.playlists;
-      if (data.recentlyPlayed) State.recentlyPlayed = data.recentlyPlayed;
-      if (data.searchHistory)  State.searchHistory  = data.searchHistory;
-      if (typeof data.volume === "number") State.volume = data.volume;
+      if (data.liked)              State.liked              = new Set(data.liked);
+      if (data.playlists)          State.playlists          = data.playlists;
+      if (data.recentlyPlayed)     State.recentlyPlayed     = data.recentlyPlayed;
+      if (data.searchHistory)      State.searchHistory      = data.searchHistory;
+      if (typeof data.volume === "number") State.volume     = data.volume;
+      if (data.totalListenSeconds) State.totalListenSeconds = data.totalListenSeconds;
+      if (data.songPlayCounts)     State.songPlayCounts     = data.songPlayCounts;
+      if (data.artistPlayCounts)   State.artistPlayCounts   = data.artistPlayCounts;
+      if (data.genrePlayCounts)    State.genrePlayCounts    = data.genrePlayCounts;
 
-      // Re-register liked songs in window registry
+      // Restore song registry from liked songs
       if (data.likedSongs && Array.isArray(data.likedSongs)) {
+        if (!window.__songRegistry) window.__songRegistry = {};
         data.likedSongs.forEach(song => {
           if (song.id && song.title) {
-            if (!window.__songRegistry) window.__songRegistry = {};
             window.__songRegistry["s_" + song.id] = song;
           }
         });
       }
 
+      // Also restore from recentlyPlayed
+      if (Array.isArray(State.recentlyPlayed)) {
+        State.recentlyPlayed.forEach(song => {
+          if (song.id && song.title) {
+            window.__songRegistry["s_" + song.id] = song;
+          }
+        });
+      }
+
+      // Restore playlist songs to registry too
+      State.playlists.forEach(pl => {
+        if (pl.songs) {
+          pl.songs.forEach(song => {
+            if (song.id && song.title) {
+              window.__songRegistry["s_" + song.id] = song;
+            }
+          });
+        }
+      });
+
       // Save loaded data to user-specific localStorage
       State.save();
 
-      console.log("☁️ Cloud data loaded for", user.displayName || user.uid);
+      console.log("☁️ Cloud loaded:", user.displayName || user.uid);
 
       // Refresh UI
       setTimeout(() => {
@@ -192,31 +228,41 @@ const FB = {
   init() {
     auth.onAuthStateChanged(async (user) => {
       if (user) {
-        // ✅ Clear previous user's data first
+        // ✅ Clear any previous user's data first
         State.clearUserData();
+        State.clearSession();
 
-        // ✅ Clear old localStorage (any previous user)
+        // ✅ Clear OTHER users' localStorage (keep only this user's data)
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && key.startsWith("sw_data_") && key !== "sw_data_" + user.uid) {
+          if (
+            key &&
+            (key.startsWith("sw_data_") || key.startsWith("sw_session_")) &&
+            !key.endsWith(user.uid)
+          ) {
             keysToRemove.push(key);
           }
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
 
+        // Clear song registry
+        window.__songRegistry = {};
+
         // Set current user
         State.currentUser = user;
         State.isGuest = false;
 
-        // Load this user's data (from localStorage first, then Firebase)
+        // Load user's data (localStorage first, then Firebase)
         State.load();
         await this.loadUserData();
 
+        // Update UI
         this.updateLoginUI(user);
 
-        // Show welcome animation, then app
-        App.showWelcomeAndApp(user);
+        // Show welcome animation + app
+        App.showWelcomeAndApp(user, this._isFirstLogin);
+        this._isFirstLogin = false;
       } else {
         this.updateLoginUI(null);
       }
@@ -224,7 +270,7 @@ const FB = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     UPDATE AVATAR / MENU UI
+     UPDATE AVATAR
   ═══════════════════════════════════════════════════════ */
   updateLoginUI(user) {
     const avatarBtn  = document.getElementById("user-avatar-btn");
@@ -242,12 +288,13 @@ const FB = {
         .toUpperCase();
 
       if (user.photoURL) {
+        // Rebuild avatar with image
         avatarBtn.innerHTML =
-          '<img src="' + user.photoURL +
-          '" alt="' + UI.escHtml(displayName) +
+          '<img src="' + user.photoURL + '" alt="' + UI.escHtml(displayName) +
           '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">' +
           '<div id="user-menu" class="hidden user-menu">' +
             '<div class="user-menu-name" id="user-menu-name">' + UI.escHtml(displayName) + '</div>' +
+            '<div class="ctx-item" onclick="openModal(\'modal-stats\')"><i class="fas fa-chart-line"></i> Your Stats</div>' +
             '<div class="ctx-item" onclick="FB.signOut()"><i class="fas fa-sign-out-alt"></i> Sign Out</div>' +
           '</div>';
       } else {

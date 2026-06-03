@@ -1,13 +1,16 @@
 /* ============================================================
    PLAYER.JS — Audio Engine
-   Added: Media Session API (Dynamic Island, Lock screen, Notifications)
+   + Auto-continue, Smart queue, Haptic, Stats
 ============================================================ */
 const Player = {
   audio: new Audio(),
   progressDragging: false,
   volumeDragging: false,
   progressTimer: null,
+  listenTimer: null,
+  sessionTimer: null,
   _currentLoadId: 0,
+  _lastTrackedSongId: null,
 
   /* ═══════════════════════════════════════════════════════
      INIT
@@ -19,22 +22,32 @@ const Player = {
     this.bindAudioEvents();
     this.bindUIEvents();
     this.startProgressLoop();
+    this.startListenTracker();
+    this.startSessionSaver();
     UI.updateVolumeUI(State.volume);
     this.setupMediaSession();
   },
 
   /* ═══════════════════════════════════════════════════════
-     MEDIA SESSION API — Dynamic Island, Lock screen, Notifications
+     HAPTIC FEEDBACK (mobile vibration)
+  ═══════════════════════════════════════════════════════ */
+  haptic(pattern = 10) {
+    if ("vibrate" in navigator) {
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) {}
+    }
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     MEDIA SESSION (Dynamic Island, Lock Screen)
   ═══════════════════════════════════════════════════════ */
   setupMediaSession() {
-    if (!("mediaSession" in navigator)) {
-      console.log("Media Session API not supported");
-      return;
-    }
+    if (!("mediaSession" in navigator)) return;
 
-    navigator.mediaSession.setActionHandler("play", () => this.togglePlay());
-    navigator.mediaSession.setActionHandler("pause", () => this.togglePlay());
-    navigator.mediaSession.setActionHandler("nexttrack", () => this.next());
+    navigator.mediaSession.setActionHandler("play",          () => this.togglePlay());
+    navigator.mediaSession.setActionHandler("pause",         () => this.togglePlay());
+    navigator.mediaSession.setActionHandler("nexttrack",     () => this.next());
     navigator.mediaSession.setActionHandler("previoustrack", () => this.prev());
 
     try {
@@ -51,14 +64,11 @@ const Player = {
           this.audio.currentTime = details.seekTime;
         }
       });
-    } catch (e) {
-      console.log("Some media session actions not supported");
-    }
+    } catch (e) {}
 
-    console.log("✅ Media Session API active (Dynamic Island, Lock screen ready)");
+    console.log("✅ Media Session active");
   },
 
-  /* Update Media Session metadata when song changes */
   updateMediaSession(song) {
     if (!("mediaSession" in navigator) || !song) return;
 
@@ -73,27 +83,25 @@ const Player = {
     ] : [];
 
     navigator.mediaSession.metadata = new MediaMetadata({
-      title:  song.title  || "Unknown Title",
-      artist: song.artist || "Unknown Artist",
+      title:  song.title  || "Unknown",
+      artist: song.artist || "Unknown",
       album:  song.album  || "SoundWave Pro",
       artwork: artworks,
     });
   },
 
-  /* Update playback state for Media Session */
   updateMediaSessionState(playing) {
     if (!("mediaSession" in navigator)) return;
     navigator.mediaSession.playbackState = playing ? "playing" : "paused";
 
-    // Update position state (for scrubbing on lock screen)
     if (this.audio.duration && !isNaN(this.audio.duration)) {
       try {
         navigator.mediaSession.setPositionState({
-          duration: this.audio.duration,
+          duration:     this.audio.duration,
           playbackRate: this.audio.playbackRate,
-          position: this.audio.currentTime,
+          position:     this.audio.currentTime,
         });
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     }
   },
 
@@ -118,7 +126,8 @@ const Player = {
       self.updateMediaSessionState(State.isPlaying);
     });
 
-    a.addEventListener("ended",   () => self.onEnded());
+    a.addEventListener("ended", () => self.onEnded());
+
     a.addEventListener("waiting", () => self.showSpinner());
     a.addEventListener("playing", () => {
       self.hideSpinner();
@@ -149,6 +158,9 @@ const Player = {
     });
   },
 
+  /* ═══════════════════════════════════════════════════════
+     PROGRESS LOOP (visual updates)
+  ═══════════════════════════════════════════════════════ */
   startProgressLoop() {
     clearInterval(this.progressTimer);
     this.progressTimer = setInterval(() => {
@@ -163,13 +175,52 @@ const Player = {
     }, 300);
   },
 
+  /* ═══════════════════════════════════════════════════════
+     LISTEN TRACKER (for stats)
+  ═══════════════════════════════════════════════════════ */
+  startListenTracker() {
+    clearInterval(this.listenTimer);
+    this.listenTimer = setInterval(() => {
+      if (State.isPlaying && State.currentSong) {
+        State.trackListening(1);
+
+        // Track song play (once per song, when 30 seconds played)
+        if (this.audio.currentTime > 30 && this._lastTrackedSongId !== State.currentSong.id) {
+          State.trackSongPlay(State.currentSong);
+          this._lastTrackedSongId = State.currentSong.id;
+        }
+      }
+    }, 1000);
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     SESSION SAVER (auto-continue)
+  ═══════════════════════════════════════════════════════ */
+  startSessionSaver() {
+    clearInterval(this.sessionTimer);
+    this.sessionTimer = setInterval(() => {
+      if (State.currentSong && this.audio.currentTime > 5) {
+        State.saveSession();
+      }
+    }, 5000);
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     UPDATE PROGRESS UI
+  ═══════════════════════════════════════════════════════ */
   updateAllProgress() {
     const cur = State.currentTime || 0;
     const dur = State.duration || 0;
     const pct = dur > 0 ? Math.min((cur / dur) * 100, 100) : 0;
+
     document.querySelectorAll(".progress-fill").forEach(el => {
       el.style.width = pct.toFixed(2) + "%";
     });
+
+    // Mini progress bar
+    const miniFill = document.querySelector(".mini-progress-fill");
+    if (miniFill) miniFill.style.width = pct.toFixed(2) + "%";
+
     document.querySelectorAll(".time-lbl.current").forEach(el => {
       el.textContent = UI.formatTime(cur);
     });
@@ -198,30 +249,29 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     UI EVENTS
+     UI EVENT BINDINGS
   ═══════════════════════════════════════════════════════ */
   bindUIEvents() {
     const self = this;
 
-    // Play button (delegated)
     document.addEventListener("click", (e) => {
       if (e.target.closest(".play-btn")) {
         e.preventDefault();
         e.stopPropagation();
+        self.haptic(8);
         self.togglePlay();
       }
     });
 
-    // Control buttons
     const btnNext    = document.getElementById("btn-next");
     const btnPrev    = document.getElementById("btn-prev");
     const btnShuffle = document.getElementById("btn-shuffle");
     const btnRepeat  = document.getElementById("btn-repeat");
 
-    if (btnNext)    btnNext.addEventListener("click", (e) => { e.stopPropagation(); self.next(); });
-    if (btnPrev)    btnPrev.addEventListener("click", (e) => { e.stopPropagation(); self.prev(); });
-    if (btnShuffle) btnShuffle.addEventListener("click", () => self.toggleShuffle());
-    if (btnRepeat)  btnRepeat.addEventListener("click", () => self.toggleRepeat());
+    if (btnNext)    btnNext.addEventListener("click", (e) => { e.stopPropagation(); self.haptic(8); self.next(); });
+    if (btnPrev)    btnPrev.addEventListener("click", (e) => { e.stopPropagation(); self.haptic(8); self.prev(); });
+    if (btnShuffle) btnShuffle.addEventListener("click", () => { self.haptic(8); self.toggleShuffle(); });
+    if (btnRepeat)  btnRepeat.addEventListener("click", () => { self.haptic(8); self.toggleRepeat(); });
 
     this.setupProgressBar();
     this.setupVolumeBar();
@@ -231,7 +281,10 @@ const Player = {
     });
 
     document.addEventListener("click", (e) => {
-      if (e.target.closest(".like-btn")) self.toggleLike();
+      if (e.target.closest(".like-btn")) {
+        self.haptic([10, 50, 10]);
+        self.toggleLike();
+      }
     });
   },
 
@@ -257,11 +310,13 @@ const Player = {
         self.seekFromTouch(e, true);
         e.preventDefault();
       }, { passive: false });
+
       track.addEventListener("touchmove", (e) => {
         if (!self.progressDragging) return;
         self.seekFromTouch(e, true);
         e.preventDefault();
       }, { passive: false });
+
       track.addEventListener("touchend", (e) => {
         if (!self.progressDragging) return;
         self.progressDragging = false;
@@ -278,6 +333,7 @@ const Player = {
           tip.style.opacity = "1";
         }
       });
+
       track.addEventListener("mouseleave", () => {
         const tip = track.querySelector(".progress-tooltip");
         if (tip) tip.style.opacity = "0";
@@ -402,11 +458,25 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     PLAY SONG
+     PLAY FROM REGISTRY (bug-fix helper)
+     Always plays the correct song by ID
+  ═══════════════════════════════════════════════════════ */
+  playFromRegistry(songId) {
+    const song = window.__songRegistry["s_" + songId];
+    if (song) {
+      this.playSong(song);
+    } else {
+      console.warn("Song not found in registry:", songId);
+    }
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     PLAY SONG (main)
   ═══════════════════════════════════════════════════════ */
   async playSong(song, queueSongs) {
     if (!song) return;
     const loadId = ++this._currentLoadId;
+    this._lastTrackedSongId = null; // Reset stats tracker
 
     if (queueSongs && queueSongs.length > 0) {
       State.queue = queueSongs;
@@ -436,14 +506,10 @@ const Player = {
     Lyrics.updateForSong(song);
     UI.updatePlayerBgColor(song);
 
-    // ✅ Update Media Session metadata (Dynamic Island, lock screen)
     this.updateMediaSession(song);
 
     const url = await API.getPlayableUrl(song);
-    if (loadId !== this._currentLoadId) {
-      console.log("Song changed — cancelling stale request");
-      return;
-    }
+    if (loadId !== this._currentLoadId) return;
 
     if (!url) {
       this.hideSpinner();
@@ -451,7 +517,6 @@ const Player = {
       return;
     }
 
-    console.log("Loading audio:", url.substring(0, 70) + "...");
     this.audio.src = url;
     this.audio.load();
 
@@ -466,10 +531,7 @@ const Player = {
       setTimeout(resolve, 8000);
     });
 
-    if (loadId !== this._currentLoadId) {
-      console.log("Song changed during load — aborting");
-      return;
-    }
+    if (loadId !== this._currentLoadId) return;
 
     this.hideSpinner();
 
@@ -481,6 +543,9 @@ const Player = {
       this.updateMediaSessionState(true);
       console.log("▶ Playing:", song.title);
       UI.showToast("♪  " + song.title, "fas fa-music", "green");
+
+      // Save session for auto-continue
+      State.saveSession();
     } catch (err) {
       console.warn("Play error:", err.name, err.message);
       this.hideSpinner();
@@ -497,7 +562,54 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     CONTROLS
+     RESTORE LAST SESSION (auto-continue on refresh)
+  ═══════════════════════════════════════════════════════ */
+  async restoreSession() {
+    const session = State.lastSession || State.loadSession();
+    if (!session || !session.song) return false;
+
+    console.log("📻 Restoring last session:", session.song.title);
+
+    // Restore queue
+    if (session.queue && session.queue.length > 0) {
+      State.queue = session.queue;
+      State.queueIndex = session.queueIndex || 0;
+    }
+
+    // Update UI but DON'T auto-play (browsers block autoplay)
+    UI.updateNowPlaying(session.song);
+    UI.renderQueue();
+    Lyrics.updateForSong(session.song);
+    UI.updatePlayerBgColor(session.song);
+    this.updateMediaSession(session.song);
+
+    // Set audio source (will need user interaction to play)
+    try {
+      const url = await API.getPlayableUrl(session.song);
+      if (url) {
+        this.audio.src = url;
+        this.audio.load();
+
+        // Try to seek to last position when metadata loads
+        this.audio.addEventListener("loadedmetadata", () => {
+          if (session.currentTime > 5) {
+            this.audio.currentTime = session.currentTime;
+            State.currentTime = session.currentTime;
+            this.updateAllProgress();
+          }
+        }, { once: true });
+
+        UI.showToast("📻 Tap play to continue", "fas fa-music", "blue");
+        return true;
+      }
+    } catch (e) {
+      console.warn("Restore failed:", e.message);
+    }
+    return false;
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     TOGGLE PLAY/PAUSE
   ═══════════════════════════════════════════════════════ */
   async togglePlay() {
     if (!State.currentSong) {
@@ -523,6 +635,9 @@ const Player = {
     }
   },
 
+  /* ═══════════════════════════════════════════════════════
+     NEXT / PREV
+  ═══════════════════════════════════════════════════════ */
   next() {
     if (State.queue.length === 0) return;
     let nextIdx;
@@ -549,22 +664,72 @@ const Player = {
     this.playSong(State.queue[prevIdx]);
   },
 
-  onEnded() {
+  /* ═══════════════════════════════════════════════════════
+     ON ENDED (with smart queue auto-continue)
+  ═══════════════════════════════════════════════════════ */
+  async onEnded() {
+    // Sleep timer "end of song" check
+    if (State.sleepEndOfSong) {
+      State.sleepEndOfSong = false;
+      State.isPlaying = false;
+      this.setPlayUI(false);
+      UI.showToast("Sleep timer ended 😴", "fas fa-moon", "blue");
+      return;
+    }
+
     if (State.repeatMode === 2) {
       this.audio.currentTime = 0;
       this.audio.play().catch(() => {});
     } else if (State.repeatMode === 1) {
       this.next();
     } else {
-      if (State.queueIndex + 1 < State.queue.length) this.next();
-      else {
-        State.isPlaying = false;
-        this.setPlayUI(false);
-        UI.showToast("Queue finished 🎵", "fas fa-check", "green");
+      if (State.queueIndex + 1 < State.queue.length) {
+        this.next();
+      } else {
+        // ✅ Smart queue: Auto-add similar songs when queue ends
+        await this.autoExtendQueue();
       }
     }
   },
 
+  /* Smart queue extension — adds similar songs */
+  async autoExtendQueue() {
+    if (!State.currentSong) {
+      State.isPlaying = false;
+      this.setPlayUI(false);
+      return;
+    }
+
+    UI.showToast("Finding similar songs...", "fas fa-magic", "blue");
+
+    try {
+      const genre = State.currentSong.genre || "popular";
+      const moreSongs = await API.search(genre + " hits", 10);
+
+      if (moreSongs && moreSongs.length > 0) {
+        // Filter out duplicates
+        const existing = new Set(State.queue.map(s => s.id));
+        const newSongs = moreSongs.filter(s => !existing.has(s.id));
+
+        if (newSongs.length > 0) {
+          State.queue = [...State.queue, ...newSongs];
+          UI.renderQueue();
+          this.next();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Auto extend failed:", e.message);
+    }
+
+    State.isPlaying = false;
+    this.setPlayUI(false);
+    UI.showToast("Queue finished 🎵", "fas fa-check", "green");
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     SHUFFLE / REPEAT / LIKE
+  ═══════════════════════════════════════════════════════ */
   toggleShuffle() {
     State.isShuffle = !State.isShuffle;
     document.querySelectorAll("#btn-shuffle, #fs-shuffle").forEach(btn => {

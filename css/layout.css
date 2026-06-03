@@ -2,7 +2,6 @@
    LAYOUT — App Shell, Sidebar, Topbar, Content, Mobile Nav
 ============================================================ */
 
-/* ── App Shell ─────────────────────────────────────────── */
 #app {
   display: grid;
   grid-template-rows: 1fr var(--player-h);
@@ -30,7 +29,6 @@
   min-width: 72px;
 }
 
-/* Logo */
 .logo-area {
   padding: 20px 16px;
   display: flex;
@@ -61,11 +59,8 @@
   overflow: hidden;
 }
 
-.logo-text .accent {
-  color: var(--accent);
-}
+.logo-text .accent { color: var(--accent); }
 
-/* Nav */
 .sidebar-nav {
   padding: 12px 8px;
   border-bottom: 1px solid var(--border);
@@ -127,7 +122,6 @@
   letter-spacing: 0.5px;
 }
 
-/* Library section in sidebar */
 .sidebar-library {
   flex: 1;
   overflow-y: auto;
@@ -223,7 +217,6 @@
   cursor: not-allowed;
 }
 
-/* Search */
 .search-wrap {
   flex: 1;
   max-width: 480px;
@@ -289,7 +282,6 @@
   color: var(--text-primary);
 }
 
-/* Topbar Right */
 .topbar-right {
   margin-left: auto;
   display: flex;
@@ -343,15 +335,15 @@
   object-fit: cover;
 }
 
-/* Content Scroll Area */
+/* Content Scroll */
 #content-area {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
   -webkit-overflow-scrolling: touch;
+  position: relative;
 }
 
-/* Pages */
 .page {
   display: none;
 }
@@ -366,7 +358,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Section Headers */
 .section-header {
   display: flex;
   align-items: flex-end;
@@ -407,7 +398,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   RIGHT SIDEBAR (Queue / Lyrics)
+   RIGHT SIDEBAR
 ═══════════════════════════════════════════════════════ */
 #sidebar-right {
   grid-row: 1;
@@ -438,14 +429,8 @@
   transition: var(--t-fast);
 }
 
-.right-tab:hover {
-  color: var(--text-secondary);
-}
-
-.right-tab.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
-}
+.right-tab:hover { color: var(--text-secondary); }
+.right-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
 
 .right-panel {
   display: none;
@@ -454,12 +439,10 @@
   overflow: hidden;
 }
 
-.right-panel.active {
-  display: flex;
-}
+.right-panel.active { display: flex; }
 
 /* ═══════════════════════════════════════════════════════
-   PLAYER BAR (Bottom)
+   PLAYER BAR
 ═══════════════════════════════════════════════════════ */
 #player-bar {
   grid-row: 2;
@@ -473,6 +456,16 @@
   gap: 12px;
   z-index: 100;
   transition: background 0.5s var(--ease);
+  position: relative;
+}
+
+/* Hide player bar when fullscreen player is open */
+body.fs-open #player-bar {
+  display: none !important;
+}
+
+body.fs-open #mobile-nav {
+  display: none !important;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -532,10 +525,8 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   RESPONSIVE — Tablets & Smaller Desktops
+   RESPONSIVE — Tablets
 ═══════════════════════════════════════════════════════ */
-
-/* Hide right sidebar on smaller screens */
 @media (max-width: 1100px) {
   #sidebar-right {
     display: none;
@@ -545,7 +536,6 @@
   }
 }
 
-/* Hide extras on small screens */
 @media (max-width: 900px) {
   .topbar-right .topbar-icon-btn:not(:last-child) {
     display: none;
@@ -553,17 +543,15 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   MOBILE LAYOUT (≤768px)
+   MOBILE LAYOUT (≤900px)
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  /* Allow page scroll on mobile */
   html, body {
     height: auto !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Stack app vertically */
   #app {
     display: block !important;
     height: auto !important;
@@ -584,7 +572,6 @@
     overflow: visible !important;
   }
 
-  /* Topbar mobile */
   #topbar {
     padding: 10px 12px !important;
     gap: 10px !important;
@@ -602,24 +589,25 @@
     flex: 1;
   }
 
-  /* Content area — proper padding so nothing hides behind player+nav */
+  /* ✅ CRITICAL FIX: Content padding to prevent mini player overlap */
   #content-area {
-    padding: 16px 12px 200px 12px !important;
+    padding: 16px 12px 220px 12px !important;
     height: auto !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* ═══════════════════════════════════════════════════
-     MOBILE PLAYER BAR (Fixed above bottom nav)
-  ═══════════════════════════════════════════════════ */
+  /* ═══════════════════════════════════════════════
+     MOBILE PLAYER BAR (Fixed, with new design)
+  ═══════════════════════════════════════════════ */
   #player-bar {
     position: fixed !important;
     left: 8px;
     right: 8px;
     bottom: 70px;
-    height: 64px !important;
-    padding: 8px 12px !important;
+    height: auto !important;
+    min-height: 64px !important;
+    padding: 10px 12px !important;
     z-index: 9999;
     border-radius: 14px;
     background: rgba(28,28,28,0.96) !important;
@@ -627,23 +615,23 @@
     border: 1px solid rgba(255,255,255,0.08);
     box-shadow: 0 8px 30px rgba(0,0,0,0.5);
     gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  /* Hide desktop-only controls */
   .player-center,
   .player-right {
     display: none !important;
   }
 
-  /* Now playing takes full width */
   .now-playing {
     width: 100% !important;
     gap: 10px !important;
   }
 
   .now-playing-art {
-    width: 44px !important;
-    height: 44px !important;
+    width: 42px !important;
+    height: 42px !important;
     border-radius: 8px !important;
   }
 
@@ -657,9 +645,13 @@
     margin-top: 2px !important;
   }
 
-  /* Only show like + visualizer (NO lyrics/queue/eq icons here) */
+  /* Show mobile nav buttons */
+  .np-btn-mobile {
+    display: flex !important;
+  }
+
   .np-actions {
-    gap: 4px !important;
+    gap: 2px !important;
   }
 
   /* Show bottom nav */
@@ -667,7 +659,6 @@
     display: flex !important;
   }
 
-  /* Section spacing for mobile */
   .section-header {
     margin-bottom: 14px;
   }
@@ -676,9 +667,8 @@
     font-size: 19px !important;
   }
 
-  /* Toast on mobile */
   #toast-container {
-    bottom: 145px !important;
+    bottom: 160px !important;
     right: 10px !important;
     left: 10px !important;
   }
@@ -688,7 +678,6 @@
     width: 100%;
   }
 
-  /* Landing screen mobile */
   .landing-title {
     font-size: 36px !important;
   }
@@ -710,10 +699,17 @@
   }
 }
 
-/* Extra small screens */
+/* Desktop — hide mobile-only buttons */
+@media (min-width: 901px) {
+  .np-btn-mobile {
+    display: none !important;
+  }
+}
+
+/* Extra small */
 @media (max-width: 480px) {
   #content-area {
-    padding: 12px 10px 200px 10px !important;
+    padding: 12px 10px 220px 10px !important;
   }
 
   .section-title {
@@ -721,8 +717,7 @@
   }
 
   #player-bar {
-    height: 60px !important;
-    padding: 6px 10px !important;
+    padding: 8px 10px !important;
   }
 
   .now-playing-art {
@@ -732,4 +727,10 @@
 
   .np-title { font-size: 12px !important; }
   .np-artist { font-size: 10px !important; }
+
+  .np-btn-mobile {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 13px !important;
+  }
 }

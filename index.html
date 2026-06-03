@@ -2,12 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <meta name="theme-color" content="#1db954"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="SoundWave"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+
   <title>SoundWave Pro</title>
+
+  <link rel="manifest" href="manifest.json"/>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>"/>
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231db954'/><text x='50%25' y='50%25' font-size='60' text-anchor='middle' dominant-baseline='central'>🎵</text></svg>"/>
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+
   <link rel="stylesheet" href="css/base.css"/>
   <link rel="stylesheet" href="css/layout.css"/>
   <link rel="stylesheet" href="css/player.css"/>
@@ -21,6 +31,9 @@
 </head>
 
 <body>
+
+<!-- Confetti canvas (first login celebration) -->
+<canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:99999;display:none;"></canvas>
 
 <!-- ═══════════════════════════════════════════════════════
      LANDING / LOGIN SCREEN
@@ -67,7 +80,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
-     WELCOME ANIMATION (after login)
+     WELCOME ANIMATION
 ═══════════════════════════════════════════════════════ -->
 <div id="welcome-screen" class="hidden">
   <div class="welcome-content">
@@ -82,16 +95,29 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════
-     APP LOADER
-═══════════════════════════════════════════════════════ -->
+<!-- App Loader -->
 <div id="app-loader" class="hidden">
   <div class="spinner" style="width:40px;height:40px;border-width:3px;"></div>
   <div class="loader-text">Loading your music...</div>
 </div>
 
-<!-- Toast Container -->
+<!-- Toast -->
 <div id="toast-container"></div>
+
+<!-- PWA Install Prompt -->
+<div id="install-prompt" class="hidden">
+  <div class="install-content">
+    <div class="install-icon">📱</div>
+    <div class="install-text">
+      <div class="install-title">Install SoundWave Pro</div>
+      <div class="install-sub">Add to home screen for full app experience</div>
+    </div>
+    <button class="install-btn" id="install-btn">Install</button>
+    <button class="install-close" onclick="App.dismissInstallPrompt()">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════
      CONTEXT MENU
@@ -108,8 +134,34 @@
   <div class="ctx-item danger" data-action="remove"><i class="fas fa-trash"></i> Remove from Queue</div>
 </div>
 
+<!-- Mini Player More Menu (Bottom Sheet) -->
+<div id="mini-more-menu" class="bottom-sheet hidden">
+  <div class="bottom-sheet-handle"></div>
+  <div class="bottom-sheet-header" id="mini-more-song-info">
+    <div class="bottom-sheet-thumb" id="mini-more-thumb"></div>
+    <div>
+      <div class="bottom-sheet-title" id="mini-more-title">—</div>
+      <div class="bottom-sheet-sub" id="mini-more-artist">—</div>
+    </div>
+  </div>
+  <div class="bottom-sheet-actions">
+    <div class="sheet-action" onclick="MiniPlayer.actionAddToPlaylist()">
+      <i class="fas fa-plus-circle"></i><span>Add to Playlist</span>
+    </div>
+    <div class="sheet-action" onclick="MiniPlayer.actionAddToQueue()">
+      <i class="fas fa-list-ul"></i><span>Add to Queue</span>
+    </div>
+    <div class="sheet-action" onclick="MiniPlayer.actionShare()">
+      <i class="fas fa-share-alt"></i><span>Share</span>
+    </div>
+    <div class="sheet-action" onclick="UI.openFullscreen(); MiniPlayer.closeMore();">
+      <i class="fas fa-expand"></i><span>Open Player</span>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════
-     FULLSCREEN PLAYER (Premium Mobile Design)
+     FULLSCREEN PLAYER
 ═══════════════════════════════════════════════════════ -->
 <div id="fullscreen-player">
   <div class="fs-bg"></div>
@@ -120,7 +172,7 @@
       <i class="fas fa-chevron-down"></i>
     </button>
     <div class="fs-top-label">Now Playing</div>
-    <button class="fs-top-menu" onclick="UI.openFsMenu()">
+    <button class="fs-top-menu" onclick="MiniPlayer.openMore()">
       <i class="fas fa-ellipsis-h"></i>
     </button>
   </div>
@@ -174,11 +226,11 @@
       <button class="fs-action-btn" onclick="UI.openFsQueue()" data-tip="Queue">
         <i class="fas fa-list-ul"></i>
       </button>
+      <button class="fs-action-btn" onclick="MiniPlayer.actionAddToPlaylist()" data-tip="Add to Playlist">
+        <i class="fas fa-plus-circle"></i>
+      </button>
       <button class="fs-action-btn" onclick="openModal('modal-eq')" data-tip="Equalizer">
         <i class="fas fa-sliders-h"></i>
-      </button>
-      <button class="fs-action-btn" onclick="openModal('modal-sleep')" data-tip="Sleep">
-        <i class="fas fa-moon"></i>
       </button>
     </div>
   </div>
@@ -216,7 +268,7 @@
      MODALS
 ═══════════════════════════════════════════════════════ -->
 
-<!-- Equalizer Modal -->
+<!-- Equalizer -->
 <div class="modal-overlay" id="modal-eq">
   <div class="modal">
     <div class="modal-head">
@@ -243,7 +295,7 @@
   </div>
 </div>
 
-<!-- Sleep Timer Modal -->
+<!-- Sleep Timer (with End of Song option) -->
 <div class="modal-overlay" id="modal-sleep">
   <div class="modal">
     <div class="modal-head">
@@ -260,7 +312,10 @@
       <div class="sleep-opt" onclick="SleepTimer.set(45,this)"><div class="sleep-num">45</div><div class="sleep-label">min</div></div>
       <div class="sleep-opt" onclick="SleepTimer.set(60,this)"><div class="sleep-num">60</div><div class="sleep-label">min</div></div>
       <div class="sleep-opt" onclick="SleepTimer.set(90,this)"><div class="sleep-num">90</div><div class="sleep-label">min</div></div>
-      <div class="sleep-opt" onclick="SleepTimer.set(120,this)"><div class="sleep-num">120</div><div class="sleep-label">min</div></div>
+      <div class="sleep-opt special" onclick="SleepTimer.setEndOfSong(this)">
+        <div class="sleep-num" style="font-size:18px;">END</div>
+        <div class="sleep-label">of song</div>
+      </div>
     </div>
     <div id="sleep-countdown" style="display:none;text-align:center;padding:16px;background:rgba(29,185,84,0.08);border:1px solid rgba(29,185,84,0.2);border-radius:var(--r-lg);margin-top:14px;">
       <div id="sleep-time-display" style="font-size:36px;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums;">00:00</div>
@@ -270,7 +325,7 @@
   </div>
 </div>
 
-<!-- Create Playlist Modal -->
+<!-- Create Playlist -->
 <div class="modal-overlay" id="modal-playlist">
   <div class="modal">
     <div class="modal-head">
@@ -288,7 +343,7 @@
   </div>
 </div>
 
-<!-- Rename Playlist Modal -->
+<!-- Rename Playlist -->
 <div class="modal-overlay" id="modal-rename-playlist">
   <div class="modal">
     <div class="modal-head">
@@ -306,7 +361,7 @@
   </div>
 </div>
 
-<!-- Add to Playlist Modal -->
+<!-- Add to Playlist -->
 <div class="modal-overlay" id="modal-add-to-playlist">
   <div class="modal">
     <div class="modal-head">
@@ -320,7 +375,7 @@
   </div>
 </div>
 
-<!-- Share Modal -->
+<!-- Share -->
 <div class="modal-overlay" id="modal-share">
   <div class="modal">
     <div class="modal-head">
@@ -337,7 +392,18 @@
   </div>
 </div>
 
-<!-- Keyboard Shortcuts Modal -->
+<!-- Listening Stats -->
+<div class="modal-overlay" id="modal-stats">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">📊 Your Listening Stats</h3>
+      <button class="modal-close" onclick="closeModal('modal-stats')"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="stats-content"></div>
+  </div>
+</div>
+
+<!-- Keyboard Shortcuts -->
 <div class="modal-overlay" id="modal-shortcuts">
   <div class="modal">
     <div class="modal-head">
@@ -403,10 +469,12 @@
         <i class="fas fa-search search-icon-left"></i>
         <input type="text" id="search-input" placeholder="Search songs, artists, albums..." autocomplete="off"/>
         <span class="search-clear" style="display:none;"><i class="fas fa-times"></i></span>
-        <!-- Search Suggestions Dropdown -->
         <div id="search-suggestions" class="search-suggestions hidden"></div>
       </div>
       <div class="topbar-right">
+        <button class="topbar-icon-btn" onclick="openModal('modal-stats')" data-tip="Stats">
+          <i class="fas fa-chart-line"></i>
+        </button>
         <button class="topbar-icon-btn" onclick="openModal('modal-shortcuts')" data-tip="Shortcuts">
           <i class="fas fa-keyboard"></i>
         </button>
@@ -423,6 +491,9 @@
           <span id="user-avatar-text">G</span>
           <div id="user-menu" class="hidden user-menu">
             <div class="user-menu-name" id="user-menu-name">Guest</div>
+            <div class="ctx-item" onclick="openModal('modal-stats')">
+              <i class="fas fa-chart-line"></i> Your Stats
+            </div>
             <div class="ctx-item" onclick="FB.signOut()">
               <i class="fas fa-sign-out-alt"></i> Sign Out
             </div>
@@ -432,7 +503,13 @@
     </div>
 
     <div id="content-area">
-      <!-- Home Page -->
+      <!-- Pull-to-refresh indicator -->
+      <div id="pull-refresh-indicator">
+        <div class="ptr-spinner"></div>
+        <span class="ptr-text">Pull to refresh</span>
+      </div>
+
+      <!-- Home -->
       <div class="page active" id="page-home">
         <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
           <div class="spinner" style="margin:0 auto 16px;width:36px;height:36px;border-width:3px;"></div>
@@ -440,13 +517,13 @@
         </div>
       </div>
 
-      <!-- Search Page -->
+      <!-- Search -->
       <div class="page" id="page-search">
         <div id="search-categories"></div>
         <div id="search-results" style="display:none;"></div>
       </div>
 
-      <!-- Library Page -->
+      <!-- Library -->
       <div class="page" id="page-library">
         <div id="library-content">
           <div class="no-results">
@@ -490,19 +567,35 @@
     </div>
   </aside>
 
-  <!-- Player Bar -->
+  <!-- ═══════════════════════════════════════════════════════
+       PLAYER BAR (Premium Mini Player)
+  ═══════════════════════════════════════════════════════ -->
   <div id="player-bar">
+    <!-- Mini progress (top thin line on mobile) -->
+    <div class="mini-progress">
+      <div class="mini-progress-fill"></div>
+    </div>
+
     <div class="now-playing">
       <div class="now-playing-art" onclick="UI.openFullscreen()">
         <div class="art-placeholder">🎵</div>
       </div>
-      <div class="np-text">
+      <div class="np-text" onclick="UI.openFullscreen()">
         <div class="np-title">Select a song</div>
         <div class="np-artist" style="color:var(--text-secondary);">—</div>
       </div>
       <div class="np-actions">
         <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like">
           <i class="far fa-heart"></i>
+        </button>
+        <button class="np-btn np-btn-mobile" onclick="UI.switchRightPanel('lyrics')" data-tip="Lyrics">
+          <i class="fas fa-align-left"></i>
+        </button>
+        <button class="np-btn np-btn-mobile" onclick="UI.switchRightPanel('queue')" data-tip="Queue">
+          <i class="fas fa-list-ul"></i>
+        </button>
+        <button class="np-btn np-btn-mobile" onclick="MiniPlayer.openMore()" data-tip="More">
+          <i class="fas fa-ellipsis-h"></i>
         </button>
         <div class="mini-visualizer" style="display:none;">
           <div class="bar"></div>
@@ -561,7 +654,7 @@
   </div>
 </div>
 
-<!-- Scripts (order matters!) -->
+<!-- Scripts -->
 <script src="js/state.js"></script>
 <script src="js/firebase.js"></script>
 <script src="js/api.js"></script>
@@ -569,6 +662,17 @@
 <script src="js/player.js"></script>
 <script src="js/features.js"></script>
 <script src="js/app.js"></script>
+
+<!-- Register Service Worker -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js")
+        .then(reg => console.log("✅ SW registered:", reg.scope))
+        .catch(err => console.log("SW registration failed:", err));
+    });
+  }
+</script>
 
 </body>
 </html>

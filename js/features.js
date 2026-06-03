@@ -1,6 +1,6 @@
 /* ============================================================
-   FEATURES — EQ, Sleep Timer, Lyrics, Context Menu,
-              Search (with suggestions), Playlist Manager
+   FEATURES — EQ, Sleep, Lyrics, ContextMenu, Search,
+              PlaylistManager, MiniPlayer
 ============================================================ */
 
 /* ═══════════════════════════════════════════════════════
@@ -63,13 +63,14 @@ const EQ = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   SLEEP TIMER
+   SLEEP TIMER (with End of Song)
 ═══════════════════════════════════════════════════════ */
 const SleepTimer = {
   interval: null,
 
   set(minutes, btn) {
     clearInterval(this.interval);
+    State.sleepEndOfSong = false;
     State.sleepRemaining = minutes * 60;
     document.querySelectorAll(".sleep-opt").forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
@@ -91,9 +92,22 @@ const SleepTimer = {
     UI.showToast("Sleep timer: " + minutes + " min ⏰", "fas fa-moon", "blue");
   },
 
+  setEndOfSong(btn) {
+    clearInterval(this.interval);
+    State.sleepRemaining = 0;
+    State.sleepEndOfSong = true;
+    document.querySelectorAll(".sleep-opt").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    const countdown = document.getElementById("sleep-countdown");
+    if (countdown) countdown.style.display = "none";
+    UI.showToast("Will stop after current song 😴", "fas fa-moon", "blue");
+    closeModal("modal-sleep");
+  },
+
   cancel() {
     clearInterval(this.interval);
     State.sleepRemaining = 0;
+    State.sleepEndOfSong = false;
     document.querySelectorAll(".sleep-opt").forEach(b => b.classList.remove("active"));
     const countdown = document.getElementById("sleep-countdown");
     if (countdown) countdown.style.display = "none";
@@ -145,12 +159,10 @@ const Lyrics = {
         if (lyrics && lyrics.length > 0) {
           this._data[song.id] = lyrics;
           this.renderLines(lyrics);
-          console.log("✅ Lyrics loaded:", lyrics.length, "lines");
         } else {
           this.showNoLyrics();
         }
       } catch (e) {
-        console.warn("Lyrics error:", e.message);
         this.showNoLyrics();
       }
     }, 500);
@@ -166,7 +178,6 @@ const Lyrics = {
       '<span>' + (line.text || "♪") + '</span></div>'
     ).join("");
 
-    // Sync fullscreen lyrics if open
     const fsPanel = document.getElementById("fs-lyrics");
     if (fsPanel && !fsPanel.classList.contains("hidden")) {
       const dst = document.getElementById("fs-lyrics-lines");
@@ -190,7 +201,6 @@ const Lyrics = {
     if (activeIdx === this._activeIndex) return;
     this._activeIndex = activeIdx;
 
-    // Update both desktop + fullscreen
     ["lyrics-lines", "fs-lyrics-lines"].forEach(containerId => {
       const container = document.getElementById(containerId);
       if (!container) return;
@@ -240,22 +250,36 @@ const Lyrics = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   CONTEXT MENU
+   CONTEXT MENU (Bug-fixed — uses song object directly)
 ═══════════════════════════════════════════════════════ */
 const ContextMenu = {
-  songIndex: -1,
   currentSong: null,
 
   open(event, songIndex) {
+    // Legacy method — kept for compatibility
+    const song = State.queue[songIndex] || State.currentSong;
+    this.openForSong(event, song?.id);
+  },
+
+  // ✅ NEW: Direct song ID based (fixes "Water → I Remember" bug)
+  openForSong(event, songId) {
     event.preventDefault();
-    this.songIndex = songIndex;
-    this.currentSong = State.queue[songIndex] || State.currentSong;
+    event.stopPropagation();
+
+    const song = window.__songRegistry["s_" + songId];
+    if (!song) return;
+
+    this.currentSong = song;
 
     const menu = document.getElementById("context-menu");
     if (!menu) return;
     menu.classList.remove("hidden");
 
     let x = event.clientX, y = event.clientY;
+    if (event.touches && event.touches[0]) {
+      x = event.touches[0].clientX;
+      y = event.touches[0].clientY;
+    }
     if (x + 220 > window.innerWidth)  x = window.innerWidth - 230;
     if (y + 280 > window.innerHeight) y = window.innerHeight - 290;
     menu.style.left = x + "px";
@@ -269,7 +293,7 @@ const ContextMenu = {
 
   action(type) {
     this.close();
-    const song = this.currentSong || State.queue[this.songIndex] || State.currentSong;
+    const song = this.currentSong;
     if (!song) return;
 
     switch (type) {
@@ -280,11 +304,13 @@ const ContextMenu = {
         State.addToQueue(song);
         UI.renderQueue();
         UI.showToast("Added to queue", "fas fa-list-ul", "green");
+        Player.haptic(10);
         break;
       case "like":
         State.toggleLike(song.id);
         UI.refreshSongHeart(song.id);
         UI.updateLikeBtn(State.liked.has(song.id));
+        Player.haptic([10, 50, 10]);
         UI.showToast(
           State.liked.has(song.id) ? "Added to Liked Songs 💚" : "Removed",
           "fas fa-heart",
@@ -301,9 +327,12 @@ const ContextMenu = {
         if (song.itunesUrl) window.open(song.itunesUrl, "_blank");
         break;
       case "remove":
-        State.removeFromQueue(this.songIndex);
-        UI.renderQueue();
-        UI.showToast("Removed from queue", "fas fa-trash", "red");
+        const idx = State.queue.findIndex(s => s.id === song.id);
+        if (idx !== -1) {
+          State.removeFromQueue(idx);
+          UI.renderQueue();
+          UI.showToast("Removed from queue", "fas fa-trash", "red");
+        }
         break;
     }
   },
@@ -316,7 +345,66 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") ContextMenu.close(); });
 
 /* ═══════════════════════════════════════════════════════
-   SEARCH (with suggestions + history)
+   LONG PRESS DETECTION (Mobile context menu)
+═══════════════════════════════════════════════════════ */
+const LongPress = {
+  pressTimer: null,
+  pressDuration: 500,
+  startX: 0,
+  startY: 0,
+
+  init() {
+    document.addEventListener("touchstart", (e) => {
+      const target = e.target.closest("[data-id]");
+      if (!target) return;
+
+      const songId = target.dataset.id;
+      if (!songId) return;
+
+      this.startX = e.touches[0].clientX;
+      this.startY = e.touches[0].clientY;
+
+      this.pressTimer = setTimeout(() => {
+        if (navigator.vibrate) navigator.vibrate(50);
+        target.classList.add("long-pressing");
+
+        // Show context menu
+        ContextMenu.openForSong({
+          preventDefault: () => {},
+          stopPropagation: () => {},
+          clientX: this.startX,
+          clientY: this.startY,
+        }, songId);
+
+        setTimeout(() => target.classList.remove("long-pressing"), 300);
+      }, this.pressDuration);
+    }, { passive: true });
+
+    document.addEventListener("touchmove", (e) => {
+      if (!this.pressTimer) return;
+      const dx = Math.abs(e.touches[0].clientX - this.startX);
+      const dy = Math.abs(e.touches[0].clientY - this.startY);
+      if (dx > 10 || dy > 10) {
+        clearTimeout(this.pressTimer);
+        this.pressTimer = null;
+      }
+    }, { passive: true });
+
+    document.addEventListener("touchend", () => {
+      clearTimeout(this.pressTimer);
+      this.pressTimer = null;
+      document.querySelectorAll(".long-pressing").forEach(el => el.classList.remove("long-pressing"));
+    });
+
+    document.addEventListener("touchcancel", () => {
+      clearTimeout(this.pressTimer);
+      this.pressTimer = null;
+    });
+  },
+};
+
+/* ═══════════════════════════════════════════════════════
+   SEARCH (with suggestions + did you mean)
 ═══════════════════════════════════════════════════════ */
 const Search = {
   debounceTimer: null,
@@ -337,15 +425,11 @@ const Search = {
       return;
     }
 
-    // Show suggestions dropdown (fast)
     this.suggestTimer = setTimeout(() => this.showSuggestions(query), 200);
 
-    // Execute full search (slower, on debounce)
     this.currentQuery = query;
     this.debounceTimer = setTimeout(() => {
-      if (UI.isMobile()) {
-        // On mobile, only run full search on submit
-      } else {
+      if (!UI.isMobile()) {
         UI.navigateTo("search");
         this.execute(query);
       }
@@ -358,7 +442,6 @@ const Search = {
 
     let html = "";
 
-    // Recent searches (if query is very short)
     if (query.length < 2 && State.searchHistory.length > 0) {
       html += '<div class="suggestion-header">Recent Searches</div>';
       State.searchHistory.slice(0, 5).forEach(q => {
@@ -378,7 +461,6 @@ const Search = {
       return;
     }
 
-    // Fetch suggestions
     const results = await API.searchSuggestions(query, 6);
     if (!results || results.length === 0) {
       this.hideSuggestions();
@@ -389,7 +471,7 @@ const Search = {
     results.forEach(s => {
       UI._registerSong(s);
       html +=
-        '<div class="suggestion-item" onclick="Player.playSong(window.__songRegistry[\'s_' + s.id + '\']); Search.hideSuggestions();">' +
+        '<div class="suggestion-item" onclick="Player.playFromRegistry(\'' + s.id + '\'); Search.hideSuggestions();">' +
           '<div class="suggestion-icon">' +
           (s.artwork ? '<img src="' + s.artwork + '" loading="lazy">' : '<i class="fas fa-music"></i>') +
           '</div>' +
@@ -421,7 +503,6 @@ const Search = {
   async execute(query) {
     if (!query) return;
 
-    // Save to search history
     State.addToSearchHistory(query);
 
     const resultsSection = document.getElementById("search-results");
@@ -438,16 +519,19 @@ const Search = {
     const songs = await API.search(query, 20);
 
     if (songs.length === 0) {
-      // ✅ Show related suggestions instead of "0 results"
-      const related = await API.search(query.split(" ")[0], 10);
+      // Fallback: search by first word
+      const firstWord = query.split(" ")[0];
+      const related = firstWord !== query ? await API.search(firstWord, 10) : [];
 
       if (related.length > 0) {
+        const suggestion = related[0].artist;
         resultsSection.innerHTML =
+          '<div class="did-you-mean">' +
+            '<i class="fas fa-lightbulb" style="color:var(--accent);"></i>' +
+            'Did you mean <strong onclick="Search.executeFromSuggestion(\'' + UI.escHtml(suggestion).replace(/'/g, "\\'") + '\')">' + UI.escHtml(suggestion) + '</strong>?' +
+          '</div>' +
           '<div class="section-header">' +
-            '<div>' +
-              '<div class="section-title">Hmm, can\'t find "' + UI.escHtml(query) + '"</div>' +
-              '<div class="section-sub">Here are some related results</div>' +
-            '</div>' +
+            '<div><div class="section-title">Related Results</div></div>' +
           '</div>' +
           '<div class="cards-grid">' +
             related.slice(0, 6).map((s, i) => UI.renderCard(s, i, related)).join("") +
@@ -461,10 +545,10 @@ const Search = {
           '</div>';
       } else {
         resultsSection.innerHTML =
-          '<div class="no-results">' +
-            '<i class="fas fa-search"></i>' +
+          '<div class="empty-state">' +
+            '<i class="fas fa-search empty-icon"></i>' +
             '<h3>Nothing found</h3>' +
-            '<p>Try different keywords or check spelling</p>' +
+            '<p>Try different keywords</p>' +
           '</div>';
       }
       return;
@@ -472,7 +556,19 @@ const Search = {
 
     State.queue = songs;
 
+    // Check if we should show "Did you mean?"
+    const didYouMean = await API.getDidYouMean(query, songs.length);
+    let dymHtml = "";
+    if (didYouMean) {
+      dymHtml =
+        '<div class="did-you-mean">' +
+          '<i class="fas fa-lightbulb" style="color:var(--accent);"></i>' +
+          'Did you mean <strong onclick="Search.executeFromSuggestion(\'' + UI.escHtml(didYouMean).replace(/'/g, "\\'") + '\')">' + UI.escHtml(didYouMean) + '</strong>?' +
+        '</div>';
+    }
+
     resultsSection.innerHTML =
+      dymHtml +
       '<div class="section-header"><div><div class="section-title">Top Results for "' + UI.escHtml(query) + '"</div></div></div>' +
       '<div class="cards-grid">' +
         songs.slice(0, 6).map((s, i) => UI.renderCard(s, i, songs)).join("") +
@@ -497,7 +593,76 @@ const Search = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   PLAYLIST MANAGER (Full CRUD)
+   MINI PLAYER (More menu / Bottom sheet)
+═══════════════════════════════════════════════════════ */
+const MiniPlayer = {
+  _backdrop: null,
+
+  openMore() {
+    if (!State.currentSong) {
+      UI.showToast("No song playing", "fas fa-info-circle", "blue");
+      return;
+    }
+
+    Player.haptic(8);
+    const song = State.currentSong;
+
+    const titleEl  = document.getElementById("mini-more-title");
+    const artistEl = document.getElementById("mini-more-artist");
+    const thumbEl  = document.getElementById("mini-more-thumb");
+
+    if (titleEl)  titleEl.textContent  = song.title;
+    if (artistEl) artistEl.textContent = song.artist;
+    if (thumbEl) {
+      thumbEl.innerHTML = song.artwork
+        ? '<img src="' + song.artwork + '" alt="">'
+        : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg-elevated);">🎵</div>';
+    }
+
+    // Backdrop
+    if (!this._backdrop) {
+      this._backdrop = document.createElement("div");
+      this._backdrop.className = "sheet-backdrop";
+      this._backdrop.onclick = () => this.closeMore();
+      document.body.appendChild(this._backdrop);
+    } else {
+      this._backdrop.style.display = "";
+    }
+
+    const sheet = document.getElementById("mini-more-menu");
+    if (sheet) sheet.classList.remove("hidden");
+  },
+
+  closeMore() {
+    const sheet = document.getElementById("mini-more-menu");
+    if (sheet) sheet.classList.add("hidden");
+    if (this._backdrop) this._backdrop.style.display = "none";
+  },
+
+  /* Actions */
+  actionAddToPlaylist() {
+    this.closeMore();
+    if (!State.currentSong) return;
+    PlaylistManager.showAddToPlaylist(State.currentSong);
+  },
+
+  actionAddToQueue() {
+    this.closeMore();
+    if (!State.currentSong) return;
+    State.addToQueue(State.currentSong);
+    UI.renderQueue();
+    UI.showToast("Added to queue", "fas fa-list-ul", "green");
+  },
+
+  actionShare() {
+    this.closeMore();
+    if (!State.currentSong) return;
+    PlaylistManager.shareSong(State.currentSong);
+  },
+};
+
+/* ═══════════════════════════════════════════════════════
+   PLAYLIST MANAGER (Full CRUD + Share + Rename + Delete)
 ═══════════════════════════════════════════════════════ */
 const PlaylistManager = {
   pendingSong: null,
@@ -567,7 +732,7 @@ const PlaylistManager = {
     }
   },
 
-  /* OPEN */
+  /* OPEN (with responsive mobile layout) */
   openPlaylist(id) {
     const pl = State.playlists.find(p => p.id === id);
     if (!pl) return;
@@ -581,19 +746,19 @@ const PlaylistManager = {
     const coverClass = pl.coverGradient || "gradient-1";
     const coverHtml = pl.cover
       ? '<img src="' + pl.cover + '" alt="" loading="lazy">'
-      : '<div style="font-size:80px;">📁</div>';
+      : '<div>📁</div>';
 
     let html =
       '<button class="see-all" onclick="UI.renderLibrary()" style="margin-bottom:20px;">' +
         '<i class="fas fa-arrow-left"></i> Back to Library' +
       '</button>' +
-      '<div style="display:flex;gap:24px;align-items:flex-end;margin-bottom:30px;flex-wrap:wrap;">' +
-        '<div class="playlist-cover ' + coverClass + '" style="width:200px;height:200px;border-radius:16px;flex-shrink:0;">' + coverHtml + '</div>' +
-        '<div style="flex:1;min-width:200px;">' +
-          '<div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Playlist</div>' +
-          '<div style="font-size:42px;font-weight:900;letter-spacing:-1px;margin-bottom:12px;line-height:1.1;">' + UI.escHtml(pl.name) + '</div>' +
-          '<div style="color:var(--text-secondary);font-size:14px;margin-bottom:18px;">' + pl.songs.length + ' song' + (pl.songs.length !== 1 ? 's' : '') + '</div>' +
-          '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+      '<div class="playlist-detail-header">' +
+        '<div class="playlist-detail-cover ' + coverClass + '">' + coverHtml + '</div>' +
+        '<div class="playlist-detail-info">' +
+          '<div class="playlist-detail-label">Playlist</div>' +
+          '<div class="playlist-detail-title">' + UI.escHtml(pl.name) + '</div>' +
+          '<div class="playlist-detail-meta">' + pl.songs.length + ' song' + (pl.songs.length !== 1 ? 's' : '') + '</div>' +
+          '<div class="playlist-detail-actions">' +
             (pl.songs.length > 0
               ? '<button class="hero-play" onclick="PlaylistManager.playPlaylist(\'' + id + '\')"><i class="fas fa-play"></i> Play All</button>'
               : '') +
@@ -609,7 +774,7 @@ const PlaylistManager = {
         '<div class="empty-state">' +
           '<i class="fas fa-music empty-icon"></i>' +
           '<h3>This playlist is empty</h3>' +
-          '<p>Add songs from anywhere using the menu (right-click)</p>' +
+          '<p>Add songs from anywhere using the menu</p>' +
           '<button class="empty-state-action" onclick="UI.navigate(\'home\')"><i class="fas fa-search"></i> Find Songs</button>' +
         '</div>';
     } else {
@@ -618,10 +783,9 @@ const PlaylistManager = {
           '<div class="song-list-head"><span>#</span><span>Title</span><span>Album</span><span><i class="fas fa-clock"></i></span><span></span></div>';
       pl.songs.forEach((s, i) => {
         UI._registerSong(s);
-        const liked = State.liked.has(s.id);
         const active = State.currentSong && State.currentSong.id === s.id;
         html +=
-          '<div class="song-row ' + (active ? "active" : "") + '" onclick="Player.playSong(window.__songRegistry[\'s_' + s.id + '\'])" data-id="' + s.id + '">' +
+          '<div class="song-row ' + (active ? "active" : "") + '" onclick="Player.playFromRegistry(\'' + s.id + '\')" data-id="' + s.id + '">' +
             '<div class="song-num">' +
               '<span class="song-num-text">' + (i + 1) + '</span>' +
               '<span class="song-play-btn"><i class="fas fa-play"></i></span>' +
@@ -654,6 +818,10 @@ const PlaylistManager = {
   playPlaylist(id) {
     const pl = State.playlists.find(p => p.id === id);
     if (!pl || pl.songs.length === 0) return;
+
+    // Register all songs
+    pl.songs.forEach(s => UI._registerSong(s));
+
     State.queue = [...pl.songs];
     State.queueIndex = 0;
     Player.playSong(pl.songs[0]);
@@ -682,9 +850,9 @@ const PlaylistManager = {
         const grad = pl.coverGradient || "gradient-1";
         return (
           '<div class="ctx-item" onclick="PlaylistManager.addPendingToPlaylist(\'' + pl.id + '\')" style="padding:12px;">' +
-            '<div class="playlist-cover ' + grad + '" style="width:36px;height:36px;font-size:18px;border-radius:6px;margin:0;">📁</div>' +
-            '<div style="flex:1;">' +
-              '<div style="font-size:14px;font-weight:600;color:var(--text-primary);">' + UI.escHtml(pl.name) + '</div>' +
+            '<div class="playlist-cover ' + grad + '" style="width:36px;height:36px;font-size:18px;border-radius:6px;margin:0;flex-shrink:0;">📁</div>' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-size:14px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.escHtml(pl.name) + '</div>' +
               '<div style="font-size:11px;color:var(--text-muted);">' + pl.songs.length + ' songs' + (already ? ' · Already added' : '') + '</div>' +
             '</div>' +
             (already ? '<i class="fas fa-check" style="color:var(--accent);"></i>' : '<i class="fas fa-plus" style="color:var(--text-muted);"></i>') +
@@ -701,6 +869,7 @@ const PlaylistManager = {
     closeModal("modal-add-to-playlist");
     if (added) {
       UI.showToast("Added to playlist!", "fas fa-check", "green");
+      Player.haptic([10, 50, 10]);
     } else {
       UI.showToast("Already in playlist", "fas fa-info-circle", "blue");
     }
@@ -712,7 +881,7 @@ const PlaylistManager = {
     UI.renderSidebarLibrary();
   },
 
-  /* REMOVE FROM PLAYLIST */
+  /* REMOVE */
   removeFromPlaylist(playlistId, songId) {
     State.removeFromPlaylist(playlistId, songId);
     UI.showToast("Removed from playlist", "fas fa-minus-circle", "red");

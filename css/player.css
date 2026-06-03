@@ -1,10 +1,39 @@
 /* ============================================================
-   PLAYER — Now Playing, Controls, Progress, Volume
-   Premium Fullscreen Player (Spotify-inspired)
+   PLAYER — Premium Mini Player + Fullscreen
 ============================================================ */
 
 /* ═══════════════════════════════════════════════════════
-   NOW PLAYING (Player Bar — Bottom)
+   MINI PROGRESS BAR (Top thin line on player bar)
+═══════════════════════════════════════════════════════ */
+.mini-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mini-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(to right, var(--accent), var(--accent-hover));
+  transition: width 0.2s linear;
+  border-radius: 0 var(--r-full) var(--r-full) 0;
+  box-shadow: 0 0 8px rgba(29,185,84,0.5);
+}
+
+/* Desktop: hide mini progress (full progress bar already shown) */
+@media (min-width: 901px) {
+  .mini-progress {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   NOW PLAYING (Player Bar)
 ═══════════════════════════════════════════════════════ */
 .now-playing {
   display: flex;
@@ -52,6 +81,7 @@
 .np-text {
   flex: 1;
   min-width: 0;
+  cursor: pointer;
 }
 
 .np-title {
@@ -60,14 +90,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
   transition: var(--t-fast);
 }
 
-.np-title:hover {
-  color: var(--accent);
-  text-decoration: underline;
-}
+.np-title:hover { color: var(--accent); }
 
 .np-artist {
   font-size: 11px;
@@ -76,12 +102,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 3px;
-  cursor: pointer;
 }
 
-.np-artist:hover {
-  color: var(--text-primary);
-}
+.np-artist:hover { color: var(--text-primary); }
 
 .np-actions {
   display: flex;
@@ -99,6 +122,9 @@
   font-size: 14px;
   color: var(--text-muted);
   transition: var(--t-fast);
+  cursor: pointer;
+  border: none;
+  background: none;
 }
 
 .np-btn:hover {
@@ -108,6 +134,19 @@
 
 .np-btn.liked {
   color: var(--accent);
+}
+
+/* Mobile-only buttons (Lyrics, Queue, More) */
+.np-btn-mobile {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.np-btn-mobile:active {
+  background: rgba(255,255,255,0.12);
+  transform: scale(0.92);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -139,6 +178,9 @@
   color: var(--text-secondary);
   transition: var(--t-fast);
   position: relative;
+  cursor: pointer;
+  border: none;
+  background: none;
 }
 
 .ctrl-btn:hover {
@@ -183,9 +225,7 @@
   box-shadow: 0 0 20px rgba(255,255,255,0.3);
 }
 
-.play-btn:active {
-  transform: scale(0.95);
-}
+.play-btn:active { transform: scale(0.95); }
 
 .play-btn.loading {
   background: var(--bg-elevated);
@@ -211,9 +251,7 @@
   font-weight: 500;
 }
 
-.time-lbl.right {
-  text-align: right;
-}
+.time-lbl.right { text-align: right; }
 
 .progress-track {
   flex: 1;
@@ -256,11 +294,8 @@
   box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 
-.progress-track:hover .progress-thumb {
-  opacity: 1;
-}
+.progress-track:hover .progress-thumb { opacity: 1; }
 
-/* Hover tooltip */
 .progress-tooltip {
   position: absolute;
   bottom: calc(100% + 8px);
@@ -277,9 +312,7 @@
   transition: opacity 0.15s;
 }
 
-.progress-track:hover .progress-tooltip {
-  opacity: 1;
-}
+.progress-track:hover .progress-tooltip { opacity: 1; }
 
 /* ═══════════════════════════════════════════════════════
    VOLUME (Desktop)
@@ -301,9 +334,7 @@
   flex-shrink: 0;
 }
 
-.vol-icon:hover {
-  color: var(--text-primary);
-}
+.vol-icon:hover { color: var(--text-primary); }
 
 .vol-track {
   width: 100px;
@@ -315,9 +346,7 @@
   transition: height 0.15s;
 }
 
-.vol-track:hover {
-  height: 6px;
-}
+.vol-track:hover { height: 6px; }
 
 .vol-fill {
   height: 100%;
@@ -327,11 +356,8 @@
   transition: width 0.05s;
 }
 
-.vol-track:hover .vol-fill {
-  background: var(--accent);
-}
+.vol-track:hover .vol-fill { background: var(--accent); }
 
-/* Extra player buttons */
 .player-extras {
   display: flex;
   gap: 2px;
@@ -348,6 +374,9 @@
   font-size: 14px;
   color: var(--text-muted);
   transition: var(--t-fast);
+  cursor: pointer;
+  border: none;
+  background: none;
 }
 
 .extra-btn:hover {
@@ -355,11 +384,9 @@
   background: rgba(255,255,255,0.06);
 }
 
-.extra-btn.active {
-  color: var(--accent);
-}
+.extra-btn.active { color: var(--accent); }
 
-/* Mini visualizer (playing bars) */
+/* Visualizer bars */
 .mini-visualizer {
   display: flex;
   align-items: flex-end;
@@ -386,7 +413,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   FULLSCREEN PLAYER (Premium Mobile Design)
+   FULLSCREEN PLAYER (Premium)
 ═══════════════════════════════════════════════════════ */
 #fullscreen-player {
   position: fixed;
@@ -404,6 +431,11 @@
   opacity: 1;
   pointer-events: all;
   transform: translateY(0);
+}
+
+/* Swipe down state */
+#fullscreen-player.swiping {
+  transition: none;
 }
 
 .fs-bg {
@@ -432,6 +464,17 @@
     rgba(0,0,0,0.3) 0%,
     rgba(0,0,0,0.6) 100%
   );
+}
+
+/* Color-adaptive overlay (set by JS) */
+.fs-bg.color-tint {
+  background: linear-gradient(
+    180deg,
+    var(--dynamic-color) 0%,
+    rgba(0,0,0,0.8) 60%,
+    #000 100%
+  );
+  opacity: 0.85;
 }
 
 /* Top bar */
@@ -484,6 +527,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px 40px;
+  padding-bottom: max(40px, env(safe-area-inset-bottom));
   max-width: 500px;
   width: 100%;
   margin: 0 auto;
@@ -521,28 +565,35 @@
 .fs-meta {
   text-align: center;
   width: 100%;
-  margin: 24px 0 8px;
+  margin: 20px 0 4px;
 }
 
 .fs-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.5px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #fff;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
 }
 
 .fs-artist {
-  font-size: 15px;
+  font-size: 14px;
   color: rgba(255,255,255,0.7);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Progress section */
 .fs-progress-section {
   width: 100%;
-  margin: 12px 0;
+  margin: 8px 0;
 }
 
 .fs-progress-section .progress-track {
@@ -569,23 +620,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  margin: 12px 0;
+  gap: 16px;
+  margin: 12px 0 8px;
 }
 
 .fs-ctrl-btn {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 20px;
   color: #fff;
   background: none;
   border: none;
   cursor: pointer;
   transition: var(--t-fast);
+  position: relative;
 }
 
 .fs-ctrl-btn:hover {
@@ -600,7 +652,7 @@
 .fs-ctrl-btn.active::after {
   content: '';
   position: absolute;
-  bottom: 6px;
+  bottom: 4px;
   width: 4px;
   height: 4px;
   background: var(--accent);
@@ -608,8 +660,8 @@
 }
 
 .fs-play-btn {
-  width: 72px !important;
-  height: 72px !important;
+  width: 70px !important;
+  height: 70px !important;
   background: #fff !important;
   color: #000 !important;
   font-size: 24px !important;
@@ -622,17 +674,15 @@
   box-shadow: 0 12px 40px rgba(255,255,255,0.35) !important;
 }
 
-.fs-play-btn:active {
-  transform: scale(0.96) !important;
-}
+.fs-play-btn:active { transform: scale(0.96) !important; }
 
-/* ✅ Bottom action icons (properly spaced, NO overlap) */
+/* ✅ Bottom action icons (5 properly spaced) */
 .fs-bottom-actions {
   display: flex;
   align-items: center;
   justify-content: space-around;
   width: 100%;
-  margin-top: 16px;
+  margin-top: 12px;
   padding: 0 4px;
 }
 
@@ -679,12 +729,11 @@
   display: flex;
   flex-direction: column;
   padding: 16px 16px 24px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
   animation: fsOverlayIn 0.3s var(--ease-out);
 }
 
-.fs-lyrics.hidden {
-  display: none;
-}
+.fs-lyrics.hidden { display: none; }
 
 @keyframes fsOverlayIn {
   from { opacity: 0; transform: translateY(20px); }
@@ -726,9 +775,7 @@
   transition: var(--t-fast);
 }
 
-.fs-lyrics-close:hover {
-  background: rgba(255,255,255,0.18);
-}
+.fs-lyrics-close:hover { background: rgba(255,255,255,0.18); }
 
 .fs-lyrics-lines {
   flex: 1;
@@ -750,40 +797,38 @@
   font-size: 24px !important;
   font-weight: 900 !important;
   color: var(--accent) !important;
+  text-shadow: 0 0 30px rgba(29,185,84,0.6);
 }
 
 /* ═══════════════════════════════════════════════════════
-   DESKTOP — Fullscreen player adjustments
+   DESKTOP — Fullscreen adjustments
 ═══════════════════════════════════════════════════════ */
 @media (min-width: 901px) {
-  #fullscreen-player {
-    z-index: 9500;
-  }
-
   .fs-content {
     max-width: 480px;
   }
 
   .fs-art {
-    width: 340px;
-    height: 340px;
+    width: 320px;
+    height: 320px;
   }
 }
 
 /* ═══════════════════════════════════════════════════════
-   MOBILE — Fullscreen player tweaks
+   MOBILE — Fullscreen tweaks
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .fs-content {
     padding: 12px 18px 30px;
+    padding-bottom: max(30px, env(safe-area-inset-bottom));
   }
 
   .fs-title {
-    font-size: 21px;
+    font-size: 19px;
   }
 
   .fs-artist {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .fs-play-btn {
@@ -793,13 +838,13 @@
   }
 
   .fs-ctrl-btn {
-    width: 46px;
-    height: 46px;
-    font-size: 20px;
+    width: 44px;
+    height: 44px;
+    font-size: 19px;
   }
 
   .fs-controls {
-    gap: 12px;
+    gap: 10px;
   }
 
   .fs-action-btn {
@@ -808,28 +853,37 @@
     font-size: 16px;
   }
 
+  .fs-bottom-actions {
+    padding: 0;
+  }
+
   .fs-lyrics-lines .lyric-line {
     font-size: 16px;
   }
 
   .fs-lyrics-lines .lyric-line.active {
-    font-size: 22px !important;
+    font-size: 21px !important;
   }
 }
 
-/* Very small screens */
 @media (max-width: 360px) {
   .fs-title {
-    font-size: 19px;
+    font-size: 17px;
   }
 
   .fs-controls {
-    gap: 8px;
+    gap: 6px;
   }
 
   .fs-ctrl-btn {
-    width: 42px;
-    height: 42px;
-    font-size: 18px;
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+  }
+
+  .fs-action-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
   }
 }
