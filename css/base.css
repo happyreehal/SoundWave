@@ -76,14 +76,18 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-  height: 100vh;
-  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
-  overscroll-behavior: none;
 }
 
+@media (min-width: 901px) {
+  body {
+    height: 100vh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+}
 /* Scrollbar */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
