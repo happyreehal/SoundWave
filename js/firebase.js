@@ -1,6 +1,6 @@
 /* ============================================================
-   FIREBASE — Auth + Firestore (Fixed)
-   Now: user-specific data, proper save/load per UID
+   FIREBASE — Auth + Firestore
+   Fixed: User isolation, proper save/load, welcome animation
 ============================================================ */
 const firebaseConfig = {
   apiKey:            "AIzaSyBu1HZPsFGBkU67tKczcsTwYCr80jJntBo",
@@ -17,138 +17,221 @@ const auth = firebase.auth();
 const db   = firebase.firestore();
 
 const FB = {
-
-  // ✅ Guard variable - double popup rokne ke liye
   _signingIn: false,
+  _saveInProgress: false,
 
+  /* ═══════════════════════════════════════════════════════
+     SIGN IN (Google Popup)
+  ═══════════════════════════════════════════════════════ */
   async signIn() {
-    // ✅ Agar already sign in ho raha hai toh return karo
     if (this._signingIn) return;
     this._signingIn = true;
 
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
       const result = await auth.signInWithPopup(provider);
-      console.log("Signed in:", result.user.displayName);
+      console.log("✅ Signed in:", result.user.displayName);
     } catch (e) {
-      // ✅ Yeh errors normal hain - ignore karo
       if (
         e.code === 'auth/cancelled-popup-request' ||
         e.code === 'auth/popup-closed-by-user'
       ) {
-        console.log("Popup closed by user - OK");
+        console.log("Popup closed by user — OK");
       } else {
         console.error("Sign in error:", e);
-        UI.showToast("Sign in failed. Try again.", "fas fa-exclamation-circle", "red");
+        if (typeof UI !== "undefined") {
+          UI.showToast("Sign in failed. Try again.", "fas fa-exclamation-circle", "red");
+        }
       }
     } finally {
-      // ✅ Hamesha guard reset karo
       this._signingIn = false;
     }
   },
 
+  /* ═══════════════════════════════════════════════════════
+     SIGN OUT — Clear everything
+  ═══════════════════════════════════════════════════════ */
   async signOut() {
     try {
+      // Save current data before signing out
+      if (auth.currentUser) {
+        await this.saveUserData();
+      }
+
       await auth.signOut();
+
+      // ✅ Clear all user data
+      State.clearUserData();
       State.currentUser = null;
       State.isGuest = false;
-      State.liked = new Set();
-      State.playlists = [];
-      State.recentlyPlayed = [];
-      localStorage.removeItem("sw_data");
-      UI.showToast("Signed out successfully", "fas fa-sign-out-alt", "blue");
+
+      // ✅ Clear localStorage of this user
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("sw_data_")) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+
+      if (typeof UI !== "undefined") {
+        UI.showToast("Signed out successfully", "fas fa-sign-out-alt", "blue");
+      }
+
       setTimeout(() => location.reload(), 800);
     } catch (e) {
       console.error("Sign out error:", e);
     }
   },
 
+  /* ═══════════════════════════════════════════════════════
+     SAVE USER DATA TO FIRESTORE
+  ═══════════════════════════════════════════════════════ */
   async saveUserData() {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user || this._saveInProgress) return;
+    this._saveInProgress = true;
+
     try {
+      // Build liked songs data (full song info, not just IDs)
       const likedSongsData = [...State.liked].map(id => {
-        const song = window.__songRegistry["s_" + id]
-                  || State.recentlyPlayed.find(s => s.id === id)
-                  || State.queue.find(s => s.id === id);
+        const song =
+          (window.__songRegistry && window.__songRegistry["s_" + id]) ||
+          State.recentlyPlayed.find(s => s.id === id) ||
+          State.queue.find(s => s.id === id);
+
         return song ? {
-          id: song.id, title: song.title, artist: song.artist,
-          album: song.album || "", duration: song.duration || 0,
-          artwork: song.artwork || "", previewUrl: song.previewUrl || null,
-          genre: song.genre || "Music",
+          id:         song.id,
+          title:      song.title,
+          artist:     song.artist,
+          album:      song.album || "",
+          duration:   song.duration || 0,
+          artwork:    song.artwork || "",
+          previewUrl: song.previewUrl || null,
+          genre:      song.genre || "Music",
         } : { id };
       });
 
       await db.collection("users").doc(user.uid).set({
-        liked: [...State.liked],
-        likedSongs: likedSongsData,
-        playlists: State.playlists,
-        recentlyPlayed: State.recentlyPlayed.slice(0, 20),
-        volume: State.volume,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      console.log("Saved to cloud for", user.uid);
+        liked:          [...State.liked],
+        likedSongs:     likedSongsData,
+        playlists:      State.playlists,
+        recentlyPlayed: State.recentlyPlayed.slice(0, 30),
+        searchHistory:  State.searchHistory.slice(0, 20),
+        volume:         State.volume,
+        updatedAt:      firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      console.log("☁️ Saved to cloud for", user.displayName || user.uid);
     } catch (e) {
       console.error("Save error:", e);
+    } finally {
+      this._saveInProgress = false;
     }
   },
 
+  /* ═══════════════════════════════════════════════════════
+     LOAD USER DATA FROM FIRESTORE
+  ═══════════════════════════════════════════════════════ */
   async loadUserData() {
     const user = auth.currentUser;
     if (!user) return;
+
     try {
       const snap = await db.collection("users").doc(user.uid).get();
-      if (snap.exists) {
-        const data = snap.data();
-        if (data.liked)          State.liked          = new Set(data.liked);
-        if (data.playlists)      State.playlists      = data.playlists;
-        if (data.recentlyPlayed) State.recentlyPlayed = data.recentlyPlayed;
-        if (data.volume)         State.volume         = data.volume;
-        console.log("Cloud data loaded for", user.displayName || user.uid);
-
-        if (data.likedSongs && data.likedSongs.length > 0) {
-          data.likedSongs.forEach(song => {
-            if (song.id) window.__songRegistry["s_" + song.id] = song;
-          });
-        }
-        setTimeout(() => {
-          if (typeof UI !== "undefined") {
-            UI.renderLibrary();
-            UI.renderSidebarLibrary();
-          }
-        }, 300);
+      if (!snap.exists) {
+        console.log("New user — no cloud data yet");
+        return;
       }
+
+      const data = snap.data();
+
+      // Reset state first (clean slate)
+      State.clearUserData();
+
+      // Load from cloud
+      if (data.liked)          State.liked          = new Set(data.liked);
+      if (data.playlists)      State.playlists      = data.playlists;
+      if (data.recentlyPlayed) State.recentlyPlayed = data.recentlyPlayed;
+      if (data.searchHistory)  State.searchHistory  = data.searchHistory;
+      if (typeof data.volume === "number") State.volume = data.volume;
+
+      // Re-register liked songs in window registry
+      if (data.likedSongs && Array.isArray(data.likedSongs)) {
+        data.likedSongs.forEach(song => {
+          if (song.id && song.title) {
+            if (!window.__songRegistry) window.__songRegistry = {};
+            window.__songRegistry["s_" + song.id] = song;
+          }
+        });
+      }
+
+      // Save loaded data to user-specific localStorage
+      State.save();
+
+      console.log("☁️ Cloud data loaded for", user.displayName || user.uid);
+
+      // Refresh UI
+      setTimeout(() => {
+        if (typeof UI !== "undefined") {
+          if (State.currentPage === "library") UI.renderLibrary();
+          UI.renderSidebarLibrary();
+        }
+      }, 300);
     } catch (e) {
       console.error("Load error:", e);
     }
   },
 
+  /* ═══════════════════════════════════════════════════════
+     AUTH STATE LISTENER
+  ═══════════════════════════════════════════════════════ */
   init() {
     auth.onAuthStateChanged(async (user) => {
       if (user) {
+        // ✅ Clear previous user's data first
+        State.clearUserData();
+
+        // ✅ Clear old localStorage (any previous user)
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("sw_data_") && key !== "sw_data_" + user.uid) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+
+        // Set current user
         State.currentUser = user;
         State.isGuest = false;
+
+        // Load this user's data (from localStorage first, then Firebase)
+        State.load();
         await this.loadUserData();
+
         this.updateLoginUI(user);
-        App.showApp();
-        UI.showToast(
-          "Welcome back, " + (user.displayName || 'User') + "! 🎵",
-          "fas fa-user",
-          "green"
-        );
-        if (State.currentPage === "library") UI.renderLibrary();
+
+        // Show welcome animation, then app
+        App.showWelcomeAndApp(user);
       } else {
         this.updateLoginUI(null);
       }
     });
   },
 
+  /* ═══════════════════════════════════════════════════════
+     UPDATE AVATAR / MENU UI
+  ═══════════════════════════════════════════════════════ */
   updateLoginUI(user) {
     const avatarBtn  = document.getElementById("user-avatar-btn");
     const avatarText = document.getElementById("user-avatar-text");
     const menuName   = document.getElementById("user-menu-name");
     if (!avatarBtn) return;
+
     if (user) {
       const displayName = user.displayName || "User";
       const initials = displayName
@@ -157,26 +240,36 @@ const FB = {
         .join("")
         .substring(0, 2)
         .toUpperCase();
+
       if (user.photoURL) {
         avatarBtn.innerHTML =
           '<img src="' + user.photoURL +
-          '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">';
+          '" alt="' + UI.escHtml(displayName) +
+          '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">' +
+          '<div id="user-menu" class="hidden user-menu">' +
+            '<div class="user-menu-name" id="user-menu-name">' + UI.escHtml(displayName) + '</div>' +
+            '<div class="ctx-item" onclick="FB.signOut()"><i class="fas fa-sign-out-alt"></i> Sign Out</div>' +
+          '</div>';
       } else {
-        avatarText.textContent = initials;
+        if (avatarText) avatarText.textContent = initials;
       }
       avatarBtn.title = displayName;
       if (menuName) menuName.textContent = displayName;
     } else {
-      avatarText.textContent = "G";
+      if (avatarText) avatarText.textContent = "G";
       avatarBtn.title = "Guest";
       if (menuName) menuName.textContent = "Guest";
     }
   },
 
+  /* ═══════════════════════════════════════════════════════
+     USER MENU TOGGLE
+  ═══════════════════════════════════════════════════════ */
   toggleUserMenu() {
     const menu = document.getElementById("user-menu");
     if (!menu) return;
     menu.classList.toggle("hidden");
+
     if (!menu.classList.contains("hidden")) {
       setTimeout(() => {
         const handler = (e) => {
@@ -192,19 +285,4 @@ const FB = {
       }, 10);
     }
   },
-};
-
-const _origToggleLike = State.toggleLike.bind(State);
-State.toggleLike = function(id) {
-  _origToggleLike(id);
-  document.querySelectorAll('.song-heart, .like-btn').forEach(btn => {
-    const songId = btn.closest('[data-id]')?.dataset.id;
-    if (songId === id) {
-      const liked = State.liked.has(id);
-      btn.classList.toggle('liked', liked);
-      btn.innerHTML =
-        '<i class="' + (liked ? 'fas' : 'far') + ' fa-heart"></i>';
-      btn.style.color = liked ? 'var(--accent)' : '';
-    }
-  });
 };

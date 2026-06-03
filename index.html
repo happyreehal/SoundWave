@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#1db954"/>
   <title>SoundWave Pro</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
@@ -12,80 +13,6 @@
   <link rel="stylesheet" href="css/player.css"/>
   <link rel="stylesheet" href="css/components.css"/>
   <link rel="stylesheet" href="css/animations.css"/>
-  <style>
-    /* Landing / Login Screen */
-    #landing-screen {
-      position: fixed; inset: 0; z-index: 10000;
-      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0f0f23 100%);
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    #landing-screen.hidden {
-      opacity: 0; pointer-events: none; transform: scale(1.05);
-    }
-    .landing-logo {
-      font-size: 72px; margin-bottom: 20px;
-      animation: pulse 2s ease infinite;
-    }
-    .landing-title {
-      font-size: 42px; font-weight: 900; letter-spacing: -1px;
-      background: linear-gradient(135deg, #1db954, #1ed760);
-      -webkit-background-clip: text;
-      background-clip: text; -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-    .landing-subtitle {
-      font-size: 16px; color: #888; margin-bottom: 40px;
-    }
-    .landing-features {
-      display: flex; gap: 32px; margin-bottom: 40px;
-    }
-    .landing-feature {
-      text-align: center; color: #aaa; font-size: 13px;
-    }
-    .landing-feature i {
-      font-size: 24px; color: var(--accent); margin-bottom: 8px; display: block;
-    }
-    .google-btn {
-      display: flex; align-items: center; gap: 12px;
-      background: #fff; color: #333;
-      padding: 14px 28px; border-radius: 999px;
-      font-size: 15px; font-weight: 700; cursor: pointer;
-      border: none; transition: all 0.2s ease;
-      box-shadow: 0 4px 20px rgba(255,255,255,0.1);
-    }
-    .google-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(255,255,255,0.2);
-    }
-    .google-btn img {
-      width: 20px; height: 20px;
-    }
-    .guest-btn {
-      margin-top: 16px; background: none; border: 1px solid rgba(255,255,255,0.2);
-      color: #aaa; padding: 12px 24px; border-radius: 999px;
-      font-size: 13px; cursor: pointer; transition: all 0.2s;
-    }
-    .guest-btn:hover {
-      border-color: rgba(255,255,255,0.4); color: #fff;
-    }
-    .landing-waves {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      height: 100px; opacity: 0.1;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%231db954' fill-opacity='1' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E") no-repeat bottom;
-      background-size: cover;
-    }
-    /* Loading spinner for app */
-    #app-loader {
-      position: fixed; inset: 0; z-index: 9999;
-      background: var(--bg-primary);
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 16px;
-      transition: opacity 0.4s ease;
-    }
-    #app-loader.hidden { opacity: 0; pointer-events: none; }
-    .loader-text { color: var(--text-secondary); font-size: 14px; }
-  </style>
 
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -95,52 +22,80 @@
 
 <body>
 
-<!-- Landing / Login Screen -->
+<!-- ═══════════════════════════════════════════════════════
+     LANDING / LOGIN SCREEN
+═══════════════════════════════════════════════════════ -->
 <div id="landing-screen">
-  <div class="landing-waves"></div>
-  <div class="landing-logo">🎵</div>
-  <div class="landing-title">SoundWave Pro</div>
-  <div class="landing-subtitle">Millions of songs. Free forever.</div>
-
-  <div class="landing-features">
-    <div class="landing-feature">
-      <i class="fas fa-music"></i>
-      <div>50M+ Songs</div>
-    </div>
-    <div class="landing-feature">
-      <i class="fas fa-heart"></i>
-      <div>Your Library</div>
-    </div>
-    <div class="landing-feature">
-      <i class="fas fa-sliders-h"></i>
-      <div>Equalizer</div>
-    </div>
-    <div class="landing-feature">
-      <i class="fas fa-moon"></i>
-      <div>Sleep Timer</div>
-    </div>
+  <div class="landing-bg-orbs">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
   </div>
+  <div class="landing-content">
+    <div class="landing-logo">🎵</div>
+    <div class="landing-title">SoundWave Pro</div>
+    <div class="landing-subtitle">Millions of songs. Free forever.</div>
 
-  <button class="google-btn" onclick="FB.signIn()">
-    <img src="https://www.google.com/favicon.ico" alt="G"/>
-    Continue with Google
-  </button>
+    <div class="landing-features">
+      <div class="landing-feature">
+        <i class="fas fa-music"></i>
+        <div>50M+ Songs</div>
+      </div>
+      <div class="landing-feature">
+        <i class="fas fa-heart"></i>
+        <div>Your Library</div>
+      </div>
+      <div class="landing-feature">
+        <i class="fas fa-sliders-h"></i>
+        <div>Equalizer</div>
+      </div>
+      <div class="landing-feature">
+        <i class="fas fa-moon"></i>
+        <div>Sleep Timer</div>
+      </div>
+    </div>
 
-  <button class="guest-btn" onclick="App.enterAsGuest()">
-    Continue as Guest
-  </button>
+    <button class="google-btn" onclick="FB.signIn()">
+      <img src="https://www.google.com/favicon.ico" alt="G"/>
+      Continue with Google
+    </button>
+
+    <button class="guest-btn" onclick="App.enterAsGuest()">
+      Continue as Guest
+    </button>
+  </div>
 </div>
 
-<!-- App Loader -->
+<!-- ═══════════════════════════════════════════════════════
+     WELCOME ANIMATION (after login)
+═══════════════════════════════════════════════════════ -->
+<div id="welcome-screen" class="hidden">
+  <div class="welcome-content">
+    <div class="welcome-avatar-ring">
+      <div id="welcome-avatar" class="welcome-avatar">
+        <span id="welcome-initials">U</span>
+      </div>
+    </div>
+    <div class="welcome-greeting" id="welcome-greeting">Welcome back</div>
+    <div class="welcome-name" id="welcome-name">User</div>
+    <div class="welcome-tagline">Let's get the music started 🎵</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     APP LOADER
+═══════════════════════════════════════════════════════ -->
 <div id="app-loader" class="hidden">
   <div class="spinner" style="width:40px;height:40px;border-width:3px;"></div>
   <div class="loader-text">Loading your music...</div>
 </div>
 
-<!-- Toast -->
+<!-- Toast Container -->
 <div id="toast-container"></div>
 
-<!-- Context Menu -->
+<!-- ═══════════════════════════════════════════════════════
+     CONTEXT MENU
+═══════════════════════════════════════════════════════ -->
 <div id="context-menu" class="hidden">
   <div class="ctx-item" data-action="play"><i class="fas fa-play"></i> Play Now</div>
   <div class="ctx-item" data-action="queue"><i class="fas fa-list-ul"></i> Add to Queue</div>
@@ -153,47 +108,82 @@
   <div class="ctx-item danger" data-action="remove"><i class="fas fa-trash"></i> Remove from Queue</div>
 </div>
 
-<!-- Fullscreen Player -->
+<!-- ═══════════════════════════════════════════════════════
+     FULLSCREEN PLAYER (Premium Mobile Design)
+═══════════════════════════════════════════════════════ -->
 <div id="fullscreen-player">
   <div class="fs-bg"></div>
   <div class="fs-blur-art"></div>
-  <button class="fs-close" onclick="UI.closeFullscreen()"><i class="fas fa-chevron-down"></i></button>
+
+  <div class="fs-top-bar">
+    <button class="fs-close" onclick="UI.closeFullscreen()">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+    <div class="fs-top-label">Now Playing</div>
+    <button class="fs-top-menu" onclick="UI.openFsMenu()">
+      <i class="fas fa-ellipsis-h"></i>
+    </button>
+  </div>
 
   <div class="fs-content">
     <div class="fs-art">
       <div style="width:100%;height:100%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:80px;">🎵</div>
     </div>
 
-    <div style="text-align:center;">
-      <div class="fs-title" style="font-size:22px;font-weight:900;margin-bottom:6px;">No song playing</div>
-      <div class="fs-artist" style="font-size:14px;color:var(--text-secondary);">—</div>
+    <div class="fs-meta">
+      <div class="fs-title">No song playing</div>
+      <div class="fs-artist">—</div>
     </div>
 
-    <div class="progress-row" style="width:100%;padding:0 10px;">
-      <span class="time-lbl current">0:00</span>
-      <div class="progress-track" onclick="Player.seekClick(event)" style="flex:1;">
+    <div class="fs-progress-section">
+      <div class="progress-track" onclick="Player.seekClick(event)">
         <div class="progress-fill" style="width:0%;"><div class="progress-thumb"></div></div>
         <div class="progress-tooltip">0:00</div>
       </div>
-      <span class="time-lbl total right">0:00</span>
+      <div class="fs-time-row">
+        <span class="time-lbl current">0:00</span>
+        <span class="time-lbl total right">0:00</span>
+      </div>
     </div>
 
-    <div class="ctrl-row">
-      <button class="ctrl-btn" id="fs-shuffle" onclick="Player.toggleShuffle()" data-tip="Shuffle"><i class="fas fa-random"></i></button>
-      <button class="ctrl-btn" onclick="Player.prev()" data-tip="Previous"><i class="fas fa-step-backward"></i></button>
-      <button class="play-btn" onclick="Player.togglePlay()"><i class="fas fa-play"></i></button>
-      <button class="ctrl-btn" onclick="Player.next()" data-tip="Next"><i class="fas fa-step-forward"></i></button>
-      <button class="ctrl-btn" id="fs-repeat" onclick="Player.toggleRepeat()" data-tip="Repeat"><i class="fas fa-redo"></i></button>
+    <div class="fs-controls">
+      <button class="fs-ctrl-btn" id="fs-shuffle" onclick="Player.toggleShuffle()">
+        <i class="fas fa-random"></i>
+      </button>
+      <button class="fs-ctrl-btn" onclick="Player.prev()">
+        <i class="fas fa-step-backward"></i>
+      </button>
+      <button class="fs-play-btn play-btn" onclick="Player.togglePlay()">
+        <i class="fas fa-play"></i>
+      </button>
+      <button class="fs-ctrl-btn" onclick="Player.next()">
+        <i class="fas fa-step-forward"></i>
+      </button>
+      <button class="fs-ctrl-btn" id="fs-repeat" onclick="Player.toggleRepeat()">
+        <i class="fas fa-redo"></i>
+      </button>
     </div>
 
-    <div style="display:flex;gap:16px;align-items:center;">
-      <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like"><i class="far fa-heart"></i></button>
-      <button class="np-btn" onclick="UI.switchRightPanel('lyrics')" data-tip="Lyrics"><i class="fas fa-align-left"></i></button>
-      <button class="np-btn" onclick="openModal('modal-eq')" data-tip="Equalizer"><i class="fas fa-sliders-h"></i></button>
+    <div class="fs-bottom-actions">
+      <button class="fs-action-btn like-btn" onclick="Player.toggleLike()" data-tip="Like">
+        <i class="far fa-heart"></i>
+      </button>
+      <button class="fs-action-btn" onclick="UI.openFsLyrics()" data-tip="Lyrics">
+        <i class="fas fa-align-left"></i>
+      </button>
+      <button class="fs-action-btn" onclick="UI.openFsQueue()" data-tip="Queue">
+        <i class="fas fa-list-ul"></i>
+      </button>
+      <button class="fs-action-btn" onclick="openModal('modal-eq')" data-tip="Equalizer">
+        <i class="fas fa-sliders-h"></i>
+      </button>
+      <button class="fs-action-btn" onclick="openModal('modal-sleep')" data-tip="Sleep">
+        <i class="fas fa-moon"></i>
+      </button>
     </div>
   </div>
 
-  <!-- ✅ Fullscreen Lyrics Panel (INSIDE fullscreen-player) -->
+  <!-- Fullscreen Lyrics Overlay -->
   <div id="fs-lyrics" class="fs-lyrics hidden">
     <div class="fs-lyrics-head">
       <div>
@@ -206,9 +196,27 @@
     </div>
     <div id="fs-lyrics-lines" class="fs-lyrics-lines"></div>
   </div>
+
+  <!-- Fullscreen Queue Overlay -->
+  <div id="fs-queue" class="fs-lyrics hidden">
+    <div class="fs-lyrics-head">
+      <div>
+        <div class="fs-lyrics-title">Up Next</div>
+        <div class="fs-lyrics-artist" id="fs-queue-count">0 songs</div>
+      </div>
+      <button class="fs-lyrics-close" onclick="UI.closeFsQueue()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div id="fs-queue-list" class="fs-lyrics-lines"></div>
+  </div>
 </div>
 
-<!-- Modal: Equalizer -->
+<!-- ═══════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════ -->
+
+<!-- Equalizer Modal -->
 <div class="modal-overlay" id="modal-eq">
   <div class="modal">
     <div class="modal-head">
@@ -229,12 +237,13 @@
     </div>
     <div class="eq-bands" id="eq-grid"></div>
     <div style="display:flex;gap:10px;margin-top:16px;">
-      <button onclick="closeModal('modal-eq')" style="flex:1;padding:12px;border-radius:var(--r-full);background:var(--accent);color:#000;font-weight:700;font-size:14px;cursor:pointer;border:none;">Apply</button>
-      <button onclick="EQ.reset()" style="flex:1;padding:12px;border-radius:var(--r-full);background:rgba(255,255,255,0.08);color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">Reset</button>
+      <button onclick="closeModal('modal-eq')" class="btn-primary">Apply</button>
+      <button onclick="EQ.reset()" class="btn-secondary">Reset</button>
     </div>
   </div>
 </div>
-<!-- Modal: Sleep Timer -->
+
+<!-- Sleep Timer Modal -->
 <div class="modal-overlay" id="modal-sleep">
   <div class="modal">
     <div class="modal-head">
@@ -256,12 +265,12 @@
     <div id="sleep-countdown" style="display:none;text-align:center;padding:16px;background:rgba(29,185,84,0.08);border:1px solid rgba(29,185,84,0.2);border-radius:var(--r-lg);margin-top:14px;">
       <div id="sleep-time-display" style="font-size:36px;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums;">00:00</div>
       <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Time remaining</div>
-      <button onclick="SleepTimer.cancel()" style="margin-top:12px;padding:8px 20px;border-radius:var(--r-full);background:rgba(239,68,68,0.12);color:#ef4444;font-weight:700;font-size:13px;border:1px solid rgba(239,68,68,0.25);cursor:pointer;">Cancel Timer</button>
+      <button onclick="SleepTimer.cancel()" class="btn-danger" style="margin-top:12px;">Cancel Timer</button>
     </div>
   </div>
 </div>
 
-<!-- Modal: Create Playlist -->
+<!-- Create Playlist Modal -->
 <div class="modal-overlay" id="modal-playlist">
   <div class="modal">
     <div class="modal-head">
@@ -269,18 +278,35 @@
       <button class="modal-close" onclick="closeModal('modal-playlist')"><i class="fas fa-times"></i></button>
     </div>
     <div style="margin-bottom:16px;">
-      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:600;">Playlist Name</label>
-      <input type="text" id="playlist-name-input" placeholder="My Awesome Playlist"
-        style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.08);border:1.5px solid var(--border);border-radius:var(--r-md);color:var(--text-primary);font-size:14px;"/>
+      <label class="modal-label">Playlist Name</label>
+      <input type="text" id="playlist-name-input" placeholder="My Awesome Playlist" class="modal-input"/>
     </div>
     <div style="display:flex;gap:10px;">
-      <button onclick="PlaylistManager.createFromModal()" style="flex:1;padding:12px;border-radius:var(--r-full);background:var(--accent);color:#000;font-weight:700;font-size:14px;cursor:pointer;border:none;">Create</button>
-      <button onclick="closeModal('modal-playlist')" style="flex:1;padding:12px;border-radius:var(--r-full);background:rgba(255,255,255,0.08);color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;">Cancel</button>
+      <button onclick="PlaylistManager.createFromModal()" class="btn-primary">Create</button>
+      <button onclick="closeModal('modal-playlist')" class="btn-secondary">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- Modal: Add to Playlist -->
+<!-- Rename Playlist Modal -->
+<div class="modal-overlay" id="modal-rename-playlist">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">✏️ Rename Playlist</h3>
+      <button class="modal-close" onclick="closeModal('modal-rename-playlist')"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label class="modal-label">New Name</label>
+      <input type="text" id="rename-playlist-input" placeholder="New playlist name" class="modal-input"/>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="PlaylistManager.renameFromModal()" class="btn-primary">Rename</button>
+      <button onclick="closeModal('modal-rename-playlist')" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add to Playlist Modal -->
 <div class="modal-overlay" id="modal-add-to-playlist">
   <div class="modal">
     <div class="modal-head">
@@ -288,14 +314,59 @@
       <button class="modal-close" onclick="closeModal('modal-add-to-playlist')"><i class="fas fa-times"></i></button>
     </div>
     <div id="playlist-select-list" style="max-height:300px;overflow-y:auto;"></div>
-    <button onclick="openModal('modal-playlist')" style="width:100%;margin-top:12px;padding:12px;border-radius:var(--r-full);background:rgba(255,255,255,0.08);color:var(--text-primary);font-weight:700;font-size:14px;cursor:pointer;border:1.5px dashed var(--border);">
+    <button onclick="closeModal('modal-add-to-playlist'); openModal('modal-playlist');" class="btn-dashed">
       <i class="fas fa-plus"></i> Create New Playlist
     </button>
   </div>
 </div>
 
-<!-- App Layout -->
+<!-- Share Modal -->
+<div class="modal-overlay" id="modal-share">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">🔗 Share</h3>
+      <button class="modal-close" onclick="closeModal('modal-share')"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="share-content" style="text-align:center;padding:10px;">
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">Copy link to share</div>
+      <input type="text" id="share-link" readonly class="modal-input" style="font-size:12px;"/>
+      <button onclick="UI.copyShareLink()" class="btn-primary" style="margin-top:12px;width:100%;">
+        <i class="fas fa-copy"></i> Copy Link
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard Shortcuts Modal -->
+<div class="modal-overlay" id="modal-shortcuts">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">⌨️ Keyboard Shortcuts</h3>
+      <button class="modal-close" onclick="closeModal('modal-shortcuts')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="shortcuts-list">
+      <div class="shortcut-row"><span>Play / Pause</span><kbd>Space</kbd></div>
+      <div class="shortcut-row"><span>Next Song</span><kbd>Alt</kbd> + <kbd>→</kbd></div>
+      <div class="shortcut-row"><span>Previous Song</span><kbd>Alt</kbd> + <kbd>←</kbd></div>
+      <div class="shortcut-row"><span>Seek Forward</span><kbd>→</kbd></div>
+      <div class="shortcut-row"><span>Seek Backward</span><kbd>←</kbd></div>
+      <div class="shortcut-row"><span>Volume Up</span><kbd>↑</kbd></div>
+      <div class="shortcut-row"><span>Volume Down</span><kbd>↓</kbd></div>
+      <div class="shortcut-row"><span>Mute</span><kbd>M</kbd></div>
+      <div class="shortcut-row"><span>Like Song</span><kbd>L</kbd></div>
+      <div class="shortcut-row"><span>Shuffle</span><kbd>S</kbd></div>
+      <div class="shortcut-row"><span>Repeat</span><kbd>R</kbd></div>
+      <div class="shortcut-row"><span>Show Shortcuts</span><kbd>?</kbd></div>
+      <div class="shortcut-row"><span>Close Modal</span><kbd>Esc</kbd></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN APP LAYOUT
+═══════════════════════════════════════════════════════ -->
 <div id="app" style="display:none;">
+
   <!-- Left Sidebar -->
   <aside id="sidebar-left">
     <div class="logo-area">
@@ -303,9 +374,15 @@
       <div class="logo-text">Sound<span class="accent">Wave</span></div>
     </div>
     <nav class="sidebar-nav">
-      <div class="nav-item active" data-page="home" onclick="UI.navigate('home')"><i class="fas fa-home nav-icon"></i><span>Home</span></div>
-      <div class="nav-item" data-page="search" onclick="UI.navigate('search')"><i class="fas fa-search nav-icon"></i><span>Search</span></div>
-      <div class="nav-item" data-page="library" onclick="UI.navigate('library')"><i class="fas fa-book nav-icon"></i><span>Your Library</span></div>
+      <div class="nav-item active" data-page="home" onclick="UI.navigate('home')">
+        <i class="fas fa-home nav-icon"></i><span>Home</span>
+      </div>
+      <div class="nav-item" data-page="search" onclick="UI.navigate('search')">
+        <i class="fas fa-search nav-icon"></i><span>Search</span>
+      </div>
+      <div class="nav-item" data-page="library" onclick="UI.navigate('library')">
+        <i class="fas fa-book nav-icon"></i><span>Your Library</span>
+      </div>
     </nav>
     <div class="sidebar-library" id="sidebar-library-container">
       <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">
@@ -324,24 +401,38 @@
       </div>
       <div class="search-wrap">
         <i class="fas fa-search search-icon-left"></i>
-        <input type="text" id="search-input" placeholder="Search songs, artists, albums..."/>
+        <input type="text" id="search-input" placeholder="Search songs, artists, albums..." autocomplete="off"/>
         <span class="search-clear" style="display:none;"><i class="fas fa-times"></i></span>
+        <!-- Search Suggestions Dropdown -->
+        <div id="search-suggestions" class="search-suggestions hidden"></div>
       </div>
       <div class="topbar-right">
-        <button class="topbar-icon-btn" onclick="openModal('modal-eq')" data-tip="Equalizer"><i class="fas fa-sliders-h"></i></button>
-        <button class="topbar-icon-btn" onclick="openModal('modal-sleep')" data-tip="Sleep Timer"><i class="fas fa-moon"></i></button>
-        <button class="topbar-icon-btn" onclick="UI.openFullscreen()" data-tip="Fullscreen Player"><i class="fas fa-expand"></i></button>
+        <button class="topbar-icon-btn" onclick="openModal('modal-shortcuts')" data-tip="Shortcuts">
+          <i class="fas fa-keyboard"></i>
+        </button>
+        <button class="topbar-icon-btn" onclick="openModal('modal-eq')" data-tip="Equalizer">
+          <i class="fas fa-sliders-h"></i>
+        </button>
+        <button class="topbar-icon-btn" onclick="openModal('modal-sleep')" data-tip="Sleep Timer">
+          <i class="fas fa-moon"></i>
+        </button>
+        <button class="topbar-icon-btn" onclick="UI.openFullscreen()" data-tip="Fullscreen">
+          <i class="fas fa-expand"></i>
+        </button>
         <div class="user-avatar" id="user-avatar-btn" onclick="FB.toggleUserMenu()" style="position:relative;">
-          <span id="user-avatar-text">AR</span>
-          <div id="user-menu" class="hidden" style="position:absolute;top:calc(100% + 8px);right:0;background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:var(--r-md);padding:6px;min-width:180px;box-shadow:var(--shadow-lg);z-index:9000;">
-            <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-secondary);" id="user-menu-name">Guest</div>
-            <div class="ctx-item" onclick="FB.signOut()"><i class="fas fa-sign-out-alt"></i> Sign Out</div>
+          <span id="user-avatar-text">G</span>
+          <div id="user-menu" class="hidden user-menu">
+            <div class="user-menu-name" id="user-menu-name">Guest</div>
+            <div class="ctx-item" onclick="FB.signOut()">
+              <i class="fas fa-sign-out-alt"></i> Sign Out
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <div id="content-area">
+      <!-- Home Page -->
       <div class="page active" id="page-home">
         <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
           <div class="spinner" style="margin:0 auto 16px;width:36px;height:36px;border-width:3px;"></div>
@@ -349,22 +440,14 @@
         </div>
       </div>
 
+      <!-- Search Page -->
       <div class="page" id="page-search">
-        <div class="section-header"><div><div class="section-title">Browse Categories</div></div></div>
         <div id="search-categories"></div>
         <div id="search-results" style="display:none;"></div>
       </div>
 
+      <!-- Library Page -->
       <div class="page" id="page-library">
-        <div class="section-header">
-          <div>
-            <div class="section-title">Your Library</div>
-            <div class="section-sub">Liked songs and your playlists</div>
-          </div>
-          <button class="see-all" onclick="openModal('modal-playlist')" style="display:flex;align-items:center;gap:6px;">
-            <i class="fas fa-plus"></i> New Playlist
-          </button>
-        </div>
         <div id="library-content">
           <div class="no-results">
             <i class="fas fa-heart"></i>
@@ -418,19 +501,14 @@
         <div class="np-artist" style="color:var(--text-secondary);">—</div>
       </div>
       <div class="np-actions">
-        <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like"><i class="far fa-heart"></i></button>
-        <button class="np-btn" onclick="UI.switchRightPanel('queue')" data-tip="Queue"><i class="fas fa-list-ul"></i></button>
-
-        <!-- ✅ Mobile lyrics button -->
-        <button class="np-btn" onclick="UI.switchRightPanel('lyrics')" data-tip="Lyrics">
-          <i class="fas fa-align-left"></i>
+        <button class="np-btn like-btn" onclick="Player.toggleLike()" data-tip="Like">
+          <i class="far fa-heart"></i>
         </button>
-
-        <div class="mini-visualizer" style="display:none;align-items:flex-end;gap:2px;height:16px;margin-left:4px;">
-          <div class="bar" style="height:40%;animation-delay:0.0s;"></div>
-          <div class="bar" style="height:80%;animation-delay:0.2s;"></div>
-          <div class="bar" style="height:60%;animation-delay:0.1s;"></div>
-          <div class="bar" style="height:100%;animation-delay:0.3s;"></div>
+        <div class="mini-visualizer" style="display:none;">
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
         </div>
       </div>
     </div>
@@ -465,15 +543,25 @@
   </div>
 </div>
 
-<!-- Mobile Bottom Nav -->
+<!-- ═══════════════════════════════════════════════════════
+     MOBILE BOTTOM NAV
+═══════════════════════════════════════════════════════ -->
 <div id="mobile-nav" style="display:none;">
-  <div class="mob-nav-btn active" data-page="home" onclick="UI.navigate('home')"><i class="fas fa-home"></i><span>Home</span></div>
-  <div class="mob-nav-btn" data-page="search" onclick="UI.navigate('search')"><i class="fas fa-search"></i><span>Search</span></div>
-  <div class="mob-nav-btn" data-page="library" onclick="UI.navigate('library')"><i class="fas fa-book"></i><span>Library</span></div>
-  <div class="mob-nav-btn" onclick="UI.openFullscreen()"><i class="fas fa-music"></i><span>Player</span></div>
+  <div class="mob-nav-btn active" data-page="home" onclick="UI.navigate('home')">
+    <i class="fas fa-home"></i><span>Home</span>
+  </div>
+  <div class="mob-nav-btn" data-page="search" onclick="UI.navigate('search')">
+    <i class="fas fa-search"></i><span>Search</span>
+  </div>
+  <div class="mob-nav-btn" data-page="library" onclick="UI.navigate('library')">
+    <i class="fas fa-book"></i><span>Library</span>
+  </div>
+  <div class="mob-nav-btn" data-page="player" onclick="UI.openFullscreen()">
+    <i class="fas fa-music"></i><span>Player</span>
+  </div>
 </div>
 
-<!-- Scripts -->
+<!-- Scripts (order matters!) -->
 <script src="js/state.js"></script>
 <script src="js/firebase.js"></script>
 <script src="js/api.js"></script>
