@@ -1,3 +1,46 @@
+/* ✅ MOBILE SCROLL FIX */
+@media (max-width: 900px) {
+  html {
+    height: auto !important;
+    overflow: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  body {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    position: static !important;
+  }
+
+  #app {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  #main-content {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  #content-area {
+    overflow: visible !important;
+    height: auto !important;
+    padding-bottom: 240px !important;
+  }
+
+  /* Make sure fullscreen player doesn't block when closed */
+  #fullscreen-player:not(.open) {
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+}
+
 /* ============================================================
    LAYOUT — App Shell, Sidebar, Topbar, Content, Mobile Nav
 ============================================================ */
