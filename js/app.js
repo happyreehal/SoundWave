@@ -831,7 +831,25 @@ const App = {
     }
   },
 };
+/* ═══════════════════════════════════════════════════════
+   LANDING SCREEN — Toggle body class for nav hide
+═══════════════════════════════════════════════════════ */
+document.addEventListener("DOMContentLoaded", () => {
+  document.body.classList.add("landing-active");
 
+  // Observer to detect when landing hides
+  const landing = document.getElementById("landing-screen");
+  if (landing) {
+    const observer = new MutationObserver(() => {
+      if (landing.classList.contains("hidden")) {
+        document.body.classList.remove("landing-active");
+      } else {
+        document.body.classList.add("landing-active");
+      }
+    });
+    observer.observe(landing, { attributes: true, attributeFilter: ["class"] });
+  }
+});
 /* ═══════════════════════════════════════════════════════
    START
 ═══════════════════════════════════════════════════════ */

@@ -1,6 +1,7 @@
 /* ============================================================
    PLAYER.JS — Audio Engine
    + Auto-continue, Smart queue, Haptic, Stats
+   + Language-aware autoExtendQueue (same language next songs)
 ============================================================ */
 const Player = {
   audio: new Audio(),
@@ -29,7 +30,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     HAPTIC FEEDBACK (mobile vibration)
+     HAPTIC FEEDBACK
   ═══════════════════════════════════════════════════════ */
   haptic(pattern = 10) {
     if ("vibrate" in navigator) {
@@ -40,7 +41,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     MEDIA SESSION (Dynamic Island, Lock Screen)
+     MEDIA SESSION
   ═══════════════════════════════════════════════════════ */
   setupMediaSession() {
     if (!("mediaSession" in navigator)) return;
@@ -159,7 +160,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     PROGRESS LOOP (visual updates)
+     PROGRESS LOOP
   ═══════════════════════════════════════════════════════ */
   startProgressLoop() {
     clearInterval(this.progressTimer);
@@ -176,7 +177,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     LISTEN TRACKER (for stats)
+     LISTEN TRACKER
   ═══════════════════════════════════════════════════════ */
   startListenTracker() {
     clearInterval(this.listenTimer);
@@ -184,7 +185,6 @@ const Player = {
       if (State.isPlaying && State.currentSong) {
         State.trackListening(1);
 
-        // Track song play (once per song, when 30 seconds played)
         if (this.audio.currentTime > 30 && this._lastTrackedSongId !== State.currentSong.id) {
           State.trackSongPlay(State.currentSong);
           this._lastTrackedSongId = State.currentSong.id;
@@ -194,7 +194,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     SESSION SAVER (auto-continue)
+     SESSION SAVER
   ═══════════════════════════════════════════════════════ */
   startSessionSaver() {
     clearInterval(this.sessionTimer);
@@ -217,7 +217,6 @@ const Player = {
       el.style.width = pct.toFixed(2) + "%";
     });
 
-    // Mini progress bar
     const miniFill = document.querySelector(".mini-progress-fill");
     if (miniFill) miniFill.style.width = pct.toFixed(2) + "%";
 
@@ -458,8 +457,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     PLAY FROM REGISTRY (bug-fix helper)
-     Always plays the correct song by ID
+     PLAY FROM REGISTRY
   ═══════════════════════════════════════════════════════ */
   playFromRegistry(songId) {
     const song = window.__songRegistry["s_" + songId];
@@ -471,23 +469,27 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     PLAY SONG (main)
+     PLAY SONG (main) — playlist mode preserved
   ═══════════════════════════════════════════════════════ */
   async playSong(song, queueSongs) {
     if (!song) return;
     const loadId = ++this._currentLoadId;
-    this._lastTrackedSongId = null; // Reset stats tracker
+    this._lastTrackedSongId = null;
 
     if (queueSongs && queueSongs.length > 0) {
       State.queue = queueSongs;
       State.queueIndex = queueSongs.findIndex(s => s.id === song.id);
       if (State.queueIndex === -1) State.queueIndex = 0;
+      // Preserve _isPlaylistMode — caller controls it
     } else {
       const idx = State.queue.findIndex(s => s.id === song.id);
-      if (idx !== -1) State.queueIndex = idx;
-      else {
+      if (idx !== -1) {
+        State.queueIndex = idx;
+        // Preserve _isPlaylistMode if already in queue
+      } else {
         State.queue.push(song);
         State.queueIndex = State.queue.length - 1;
+        State._isPlaylistMode = false;
       }
     }
 
@@ -541,10 +543,10 @@ const Player = {
       State.isPlaying = true;
       this.setPlayUI(true);
       this.updateMediaSessionState(true);
-      console.log("▶ Playing:", song.title);
+      const lang = State.detectLanguage(song);
+      console.log("▶ Playing:", song.title, "| Lang:", lang || "unknown", "| Playlist mode:", State._isPlaylistMode);
       UI.showToast("♪  " + song.title, "fas fa-music", "green");
 
-      // Save session for auto-continue
       State.saveSession();
     } catch (err) {
       console.warn("Play error:", err.name, err.message);
@@ -562,7 +564,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     RESTORE LAST SESSION (auto-continue on refresh)
+     RESTORE SESSION
   ═══════════════════════════════════════════════════════ */
   async restoreSession() {
     const session = State.lastSession || State.loadSession();
@@ -570,27 +572,23 @@ const Player = {
 
     console.log("📻 Restoring last session:", session.song.title);
 
-    // Restore queue
     if (session.queue && session.queue.length > 0) {
       State.queue = session.queue;
       State.queueIndex = session.queueIndex || 0;
     }
 
-    // Update UI but DON'T auto-play (browsers block autoplay)
     UI.updateNowPlaying(session.song);
     UI.renderQueue();
     Lyrics.updateForSong(session.song);
     UI.updatePlayerBgColor(session.song);
     this.updateMediaSession(session.song);
 
-    // Set audio source (will need user interaction to play)
     try {
       const url = await API.getPlayableUrl(session.song);
       if (url) {
         this.audio.src = url;
         this.audio.load();
 
-        // Try to seek to last position when metadata loads
         this.audio.addEventListener("loadedmetadata", () => {
           if (session.currentTime > 5) {
             this.audio.currentTime = session.currentTime;
@@ -665,7 +663,7 @@ const Player = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     ON ENDED (with smart queue auto-continue)
+     ON ENDED — Smart queue auto-continue
   ═══════════════════════════════════════════════════════ */
   async onEnded() {
     // Sleep timer "end of song" check
@@ -684,15 +682,32 @@ const Player = {
       this.next();
     } else {
       if (State.queueIndex + 1 < State.queue.length) {
+        // Next song in queue
         this.next();
       } else {
-        // ✅ Smart queue: Auto-add similar songs when queue ends
-        await this.autoExtendQueue();
+        // Queue ended
+        if (State._isPlaylistMode) {
+          console.log("✅ Playlist finished, not extending");
+          State.isPlaying = false;
+          this.setPlayUI(false);
+          State._isPlaylistMode = false;
+          UI.showToast("Playlist finished 🎵", "fas fa-check", "green");
+        } else {
+          // Normal mode: auto-extend with language-matched songs
+          await this.autoExtendQueue();
+        }
       }
     }
   },
 
-  /* Smart queue extension — adds similar songs */
+  /* ═══════════════════════════════════════════════════════
+     SMART QUEUE EXTENSION — Language-aware
+     Priority:
+     1. Search context (if user searched for something)
+     2. Current artist (same artist = same language guaranteed)
+     3. Language-matched query (Punjabi/Hindi/English)
+     4. Genre fallback
+  ═══════════════════════════════════════════════════════ */
   async autoExtendQueue() {
     if (!State.currentSong) {
       State.isPlaying = false;
@@ -702,18 +717,68 @@ const Player = {
 
     UI.showToast("Finding similar songs...", "fas fa-magic", "blue");
 
-    try {
-      const genre = State.currentSong.genre || "popular";
-      const moreSongs = await API.search(genre + " hits", 10);
+    const song = State.currentSong;
+    const language = State.detectLanguage(song);
+    const primaryArtist = (song.artist || "").split(/[,&]/)[0].trim();
+    const queriesToTry = [];
 
-      if (moreSongs && moreSongs.length > 0) {
-        // Filter out duplicates
+    // 1. Search context (if user came from a search)
+    if (State._searchContext) {
+      queriesToTry.push({ q: State._searchContext, source: "search context" });
+    }
+
+    // 2. Current artist (most reliable for same language)
+    if (primaryArtist) {
+      queriesToTry.push({ q: primaryArtist, source: "current artist" });
+    }
+
+    // 3. Language-specific query (if detected)
+    if (language) {
+      const langSuffix = State.getLanguageSearchSuffix(language);
+      if (langSuffix) {
+        queriesToTry.push({ q: langSuffix, source: "language: " + language });
+      }
+    }
+
+    // 4. Genre fallback
+    if (song.genre) {
+      queriesToTry.push({ q: song.genre + " hits", source: "genre" });
+    }
+
+    console.log("🔄 Auto-extend queries to try:", queriesToTry.map(q => q.source).join(", "));
+
+    try {
+      for (const { q, source } of queriesToTry) {
+        console.log("   Trying:", q, "(from", source + ")");
+
+        const moreSongs = await API.search(q, 15);
+        if (!moreSongs || moreSongs.length === 0) continue;
+
+        // Filter duplicates
         const existing = new Set(State.queue.map(s => s.id));
-        const newSongs = moreSongs.filter(s => !existing.has(s.id));
+        let newSongs = moreSongs.filter(s => !existing.has(s.id));
+
+        // ✅ Language filter: keep only songs matching current language
+        if (language && newSongs.length > 3) {
+          const filtered = newSongs.filter(s => {
+            const songLang = State.detectLanguage(s);
+            // Keep if same language OR unknown (be lenient)
+            return !songLang || songLang === language ||
+                   (language === "indian" && (songLang === "hindi" || songLang === "punjabi")) ||
+                   (language === "hindi"  && songLang === "indian") ||
+                   (language === "punjabi" && songLang === "indian");
+          });
+          // Use filtered only if we have enough
+          if (filtered.length >= 3) {
+            newSongs = filtered;
+            console.log("   ✅ Language filtered:", filtered.length, "songs match", language);
+          }
+        }
 
         if (newSongs.length > 0) {
           State.queue = [...State.queue, ...newSongs];
           UI.renderQueue();
+          console.log("   ✅ Added", newSongs.length, "songs from", source);
           this.next();
           return;
         }

@@ -1,6 +1,6 @@
 /* ============================================================
    STATE — Single Source of Truth
-   + Auto-continue playback, Listening stats
+   + Auto-continue, Stats, Language detection, Smart playlists
 ============================================================ */
 const State = {
   // Playback
@@ -16,6 +16,10 @@ const State = {
   duration:       0,
   isLoading:      false,
 
+  // Queue context
+  _isPlaylistMode: false,
+  _searchContext:  null,
+
   // User data
   liked:          new Set(),
   playlists:      [],
@@ -24,12 +28,12 @@ const State = {
 
   // Stats
   totalListenSeconds: 0,
-  songPlayCounts:     {},  // { songId: { count, title, artist, artwork, lastPlayed } }
-  artistPlayCounts:   {},  // { artistName: count }
-  genrePlayCounts:    {},  // { genre: count }
+  songPlayCounts:     {},
+  artistPlayCounts:   {},
+  genrePlayCounts:    {},
 
   // Auto-continue
-  lastSession: null,  // { song, currentTime, queue, queueIndex }
+  lastSession: null,
 
   // UI
   currentPage:    "home",
@@ -46,7 +50,7 @@ const State = {
   isGuest:        false,
 
   // Internal
-  _saveTimer: null,
+  _saveTimer:        null,
   _sessionSaveTimer: null,
 
   get currentSong() {
@@ -54,7 +58,108 @@ const State = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     STORAGE KEYS
+     LANGUAGE DETECTION — Artist database
+  ═══════════════════════════════════════════════════════ */
+  _ARTIST_LANGUAGE_DB: {
+    punjabi: [
+      "diljit dosanjh", "sidhu moose wala", "ap dhillon", "karan aujla",
+      "nirvair pannu", "sharry mann", "ammy virk", "jassie gill",
+      "babbu maan", "gippy grewal", "jasmine sandlas", "nimrat khaira",
+      "shubh", "imran khan", "miss pooja", "manmohan waris",
+      "harbhajan mann", "satinder sartaj", "ranjit bawa", "kulwinder billa",
+      "kambi", "garry sandhu", "ninja", "parmish verma",
+      "amrit maan", "mankirt aulakh", "elly mangat", "guru randhawa",
+      "yo yo honey singh", "j star", "kaur b", "noor chahal",
+      "deol harman", "tarsem jassar", "mandy takhar", "jass manak",
+      "sidhu", "moosewala", "honey singh"
+    ],
+    hindi: [
+      "arijit singh", "atif aslam", "shreya ghoshal", "sonu nigam",
+      "neha kakkar", "armaan malik", "a.r. rahman", "ar rahman",
+      "pritam", "vishal shekhar", "vishal-shekhar", "shankar mahadevan",
+      "kishore kumar", "lata mangeshkar", "asha bhosle", "mohammed rafi",
+      "kumar sanu", "udit narayan", "alka yagnik", "kk",
+      "mohit chauhan", "papon", "rahat fateh ali khan", "ankit tiwari",
+      "jubin nautiyal", "darshan raval", "tony kakkar", "sunidhi chauhan",
+      "shaan", "monali thakur", "amit trivedi", "salim sulaiman",
+      "tulsi kumar", "palak muchhal", "asees kaur", "dhvani bhanushali",
+      "badshah", "raftaar", "ikka", "divine", "naezy",
+      "anuv jain", "prateek kuhad", "the local train", "amit mishra"
+    ],
+    english: [
+      "taylor swift", "ed sheeran", "drake", "the weeknd",
+      "justin bieber", "billie eilish", "post malone", "ariana grande",
+      "dua lipa", "harry styles", "olivia rodrigo", "bruno mars",
+      "adele", "rihanna", "beyonce", "katy perry",
+      "imagine dragons", "coldplay", "maroon 5", "one direction",
+      "shawn mendes", "charlie puth", "sam smith", "lewis capaldi",
+      "selena gomez", "miley cyrus", "demi lovato", "kendrick lamar",
+      "travis scott", "lil nas x", "doja cat", "sza",
+      "the chainsmokers", "calvin harris", "david guetta", "marshmello",
+      "alan walker", "kygo", "zedd", "chris brown",
+      "eminem", "kanye west", "jay-z", "linkin park",
+      "metallica", "arctic monkeys", "tame impala", "the beatles",
+      "queen", "elvis presley", "michael jackson", "madonna",
+      "lana del rey", "lorde", "halsey", "camila cabello",
+      "tyla", "sza", "j cole", "21 savage"
+    ],
+  },
+
+  detectLanguage(song) {
+    if (!song) return null;
+
+    const artist = (song.artist || "").toLowerCase().trim();
+    const genre  = (song.genre  || "").toLowerCase().trim();
+    const album  = (song.album  || "").toLowerCase().trim();
+
+    // Layer 1: Artist database (most reliable)
+    for (const lang in this._ARTIST_LANGUAGE_DB) {
+      for (const dbArtist of this._ARTIST_LANGUAGE_DB[lang]) {
+        if (artist.includes(dbArtist)) {
+          return lang;
+        }
+      }
+    }
+
+    // Layer 2: Genre hints
+    if (genre.includes("bollywood") || genre.includes("hindi")) return "hindi";
+    if (genre.includes("punjabi")) return "punjabi";
+    if (genre.includes("k-pop"))   return "korean";
+    if (genre.includes("latin"))   return "latin";
+
+    // Layer 3: Album/artist keyword hints
+    const punjabiKeywords = ["punjabi", "desi", "pind"];
+    const hindiKeywords   = ["bollywood", "filmy", "hindi"];
+
+    for (const kw of punjabiKeywords) {
+      if (album.includes(kw) || artist.includes(kw)) return "punjabi";
+    }
+    for (const kw of hindiKeywords) {
+      if (album.includes(kw) || artist.includes(kw)) return "hindi";
+    }
+
+    // Layer 4: World/Worldwide genre → likely Indian
+    if (genre === "world" || genre === "worldwide" || genre === "indian pop") {
+      return "indian";
+    }
+
+    return null; // unknown — default English
+  },
+
+  getLanguageSearchSuffix(language) {
+    const map = {
+      punjabi: "punjabi hits",
+      hindi:   "bollywood hindi songs",
+      indian:  "bollywood punjabi hits",
+      english: "english pop hits",
+      korean:  "kpop hits",
+      latin:   "latin hits",
+    };
+    return map[language] || null;
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     STORAGE KEYS (user-specific)
   ═══════════════════════════════════════════════════════ */
   _getStorageKey() {
     if (this.currentUser && this.currentUser.uid) {
@@ -100,14 +205,14 @@ const State = {
     }
   },
 
-  /* Save current session for auto-continue */
+  /* Session for auto-continue */
   saveSession() {
     try {
       if (!this.currentSong) return;
       const session = {
         song:        this.currentSong,
         currentTime: this.currentTime,
-        queue:       this.queue.slice(0, 50),  // limit
+        queue:       this.queue.slice(0, 50),
         queueIndex:  this.queueIndex,
         timestamp:   Date.now(),
       };
@@ -122,7 +227,6 @@ const State = {
       const raw = localStorage.getItem(this._getSessionKey());
       if (!raw) return null;
       const session = JSON.parse(raw);
-      // Don't restore if older than 24 hours
       if (Date.now() - session.timestamp > 24 * 60 * 60 * 1000) {
         localStorage.removeItem(this._getSessionKey());
         return null;
@@ -157,7 +261,6 @@ const State = {
       if (data.artistPlayCounts)   this.artistPlayCounts   = data.artistPlayCounts;
       if (data.genrePlayCounts)    this.genrePlayCounts    = data.genrePlayCounts;
 
-      // Load session
       this.loadSession();
     } catch (e) {
       console.warn("State load error:", e.message);
@@ -179,6 +282,8 @@ const State = {
     this.queue              = [];
     this.queueIndex         = -1;
     this.lastSession        = null;
+    this._isPlaylistMode    = false;
+    this._searchContext     = null;
   },
 
   /* ═══════════════════════════════════════════════════════
@@ -217,7 +322,6 @@ const State = {
     if (!pl) return false;
     if (pl.songs.find(s => s.id === song.id)) return false;
 
-    // ✅ Store full song object (deep copy)
     pl.songs.push({
       id:         song.id,
       title:      song.title,
@@ -270,7 +374,6 @@ const State = {
   ═══════════════════════════════════════════════════════ */
   addToRecent(song) {
     if (!song || !song.id) return;
-    // Store full deep copy
     const songCopy = {
       id:         song.id,
       title:      song.title,
@@ -325,7 +428,6 @@ const State = {
   ═══════════════════════════════════════════════════════ */
   trackListening(seconds) {
     this.totalListenSeconds += seconds;
-    // Save less frequently (every 30 seconds)
     if (this.totalListenSeconds % 30 < 1) {
       this.save();
     }
@@ -334,7 +436,6 @@ const State = {
   trackSongPlay(song) {
     if (!song || !song.id) return;
 
-    // Song count
     if (!this.songPlayCounts[song.id]) {
       this.songPlayCounts[song.id] = {
         count:      0,
@@ -347,7 +448,6 @@ const State = {
     this.songPlayCounts[song.id].count++;
     this.songPlayCounts[song.id].lastPlayed = Date.now();
 
-    // Artist count
     if (song.artist) {
       const artists = song.artist.split(/[,&]/).map(a => a.trim()).filter(Boolean);
       artists.forEach(artist => {
@@ -355,7 +455,6 @@ const State = {
       });
     }
 
-    // Genre count
     if (song.genre) {
       this.genrePlayCounts[song.genre] = (this.genrePlayCounts[song.genre] || 0) + 1;
     }
@@ -391,7 +490,38 @@ const State = {
     const minutes = Math.floor((sec % 3600) / 60);
     return { hours, minutes, totalSeconds: sec };
   },
+
+  /* ═══════════════════════════════════════════════════════
+     SMART PLAYLISTS
+  ═══════════════════════════════════════════════════════ */
+  getRecentlyLiked() {
+    const recentLikedIds = [...this.liked].slice(-20).reverse();
+    return recentLikedIds
+      .map(id => window.__songRegistry["s_" + id])
+      .filter(Boolean);
+  },
+
+  getMostPlayedSongs(limit = 20) {
+    return Object.entries(this.songPlayCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, limit)
+      .map(([id, data]) => {
+        return window.__songRegistry["s_" + id] || {
+          id,
+          title: data.title,
+          artist: data.artist,
+          artwork: data.artwork,
+          duration: 0,
+        };
+      })
+      .filter(s => s && s.title);
+  },
+
+  getTopArtistForRecommendations() {
+    const top = this.getTopArtists(1);
+    return top.length > 0 ? top[0].name : null;
+  },
 };
 
-// Initial load (guest data, will be overridden on login)
+// Initial load (guest data, overridden on login)
 State.load();

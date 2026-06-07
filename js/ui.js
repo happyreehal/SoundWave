@@ -98,7 +98,8 @@ const UI = {
     const titleEl  = document.querySelector(".np-title");
     const artistEl = document.querySelector(".np-artist");
 
-    if (artEl) {
+    if (artEl) 
+   {
       if (song.artwork) {
         artEl.innerHTML =
           '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
@@ -107,9 +108,45 @@ const UI = {
         artEl.innerHTML = '<div class="art-placeholder">🎵</div>';
       }
     }
+        // ✅ Add liked star to now playing art
+    if (artEl && State.liked.has(song.id)) {
+      const existingStar = artEl.querySelector('.liked-star');
+      if (!existingStar) {
+        const star = document.createElement('div');
+        star.className = 'liked-star';
+        star.innerHTML = '<i class="fas fa-heart"></i>';
+        artEl.appendChild(star);
+      }
+    } else if (artEl) {
+      const existingStar = artEl.querySelector('.liked-star');
+      if (existingStar) existingStar.remove();
+    }
+
+    // Also add to fullscreen art
+    const fsArtEl = document.querySelector(".fs-art");
+    if (fsArtEl && State.liked.has(song.id)) {
+      const existingStar = fsArtEl.querySelector('.liked-star');
+      if (!existingStar) {
+        const star = document.createElement('div');
+        star.className = 'liked-star';
+        star.innerHTML = '<i class="fas fa-heart"></i>';
+        fsArtEl.appendChild(star);
+      }
+    } else if (fsArtEl) {
+      const existingStar = fsArtEl.querySelector('.liked-star');
+      if (existingStar) existingStar.remove();
+    }
+
 
     if (titleEl)  titleEl.textContent  = song.title;
-    if (artistEl) artistEl.textContent = song.artist;
+    if (artistEl) {
+  artistEl.textContent = song.artist;
+  artistEl.style.cursor = "pointer";
+  artistEl.onclick = (e) => {
+    e.stopPropagation();
+    ArtistPage.open(song.artist);
+  };
+}
     if (song.duration) this.updateDuration(song.duration);
 
     const fill = document.querySelector(".progress-fill");
@@ -130,8 +167,14 @@ const UI = {
     const fsBg     = document.querySelector(".fs-blur-art");
 
     if (fsTitle)  fsTitle.textContent  = song.title;
-    if (fsArtist) fsArtist.textContent = song.artist;
-
+    if (fsArtist) {
+  fsArtist.textContent = song.artist;
+  fsArtist.style.cursor = "pointer";
+  fsArtist.onclick = () => {
+    UI.closeFullscreen();
+    ArtistPage.open(song.artist);
+  };
+}
     if (fsArt && song.artwork) {
       fsArt.innerHTML =
         '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
@@ -241,14 +284,15 @@ const UI = {
       'oncontextmenu="ContextMenu.openForSong(event, \'' + song.id + '\')" ' +
       'data-id="' + song.id + '">' +
         '<div class="card-thumb">' +
-        (song.artwork
-          ? '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
-            '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)>🎵</div>\'" loading="lazy">'
-          : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
-        (song.explicit ? '<div class="card-badge">E</div>' : "") +
-        '</div>' +
+(song.artwork
+  ? '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
+    '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)>🎵</div>\'" loading="lazy">'
+  : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
+(song.explicit ? '<div class="card-badge">E</div>' : "") +
+(State.liked.has(song.id) ? '<div class="liked-star"><i class="fas fa-heart"></i></div>' : "") +
+'</div>' +
         '<div class="card-title">' + this.escHtml(song.title) + '</div>' +
-        '<div class="card-sub">' + this.escHtml(song.artist) + '</div>' +
+        '<div class="card-sub" onclick="event.stopPropagation(); ArtistPage.open(\'' + this.escHtml(song.artist).replace(/'/g, "\\'") + '\')" style="cursor:pointer;" title="View artist">' + this.escHtml(song.artist) + "</div>" +
         '<button class="card-play" onclick="event.stopPropagation(); Player.playFromRegistry(\'' + song.id + '\')">' +
           '<i class="fas fa-play"></i>' +
         '</button>' +
@@ -302,7 +346,7 @@ const UI = {
           '</div>' +
           '<div>' +
             '<div class="song-name">' + this.escHtml(song.title) + '</div>' +
-            '<div class="song-artist">' + this.escHtml(song.artist) + '</div>' +
+            '<div class="song-artist" onclick="event.stopPropagation(); ArtistPage.open(\'' + this.escHtml(song.artist).replace(/'/g, "\\'") + '\')" style="cursor:pointer;">' + this.escHtml(song.artist) + '</div>' +
           '</div>' +
         '</div>' +
         '<div class="song-album secondary truncate">' + this.escHtml(song.album || "") + '</div>' +
@@ -315,14 +359,46 @@ const UI = {
     );
   },
 
-  refreshSongHeart(songId) {
+    refreshSongHeart(songId) {
     const liked = State.liked.has(songId);
+
+    // Update song row hearts
     document.querySelectorAll('[data-id="' + songId + '"] .song-heart').forEach(el => {
       el.classList.toggle("liked", liked);
       el.innerHTML = '<i class="' + (liked ? "fas" : "far") + ' fa-heart"></i>';
     });
+
+    // ✅ Update liked star on cards
+    document.querySelectorAll('.card[data-id="' + songId + '"] .card-thumb').forEach(thumb => {
+      let star = thumb.querySelector('.liked-star');
+      if (liked && !star) {
+        star = document.createElement('div');
+        star.className = 'liked-star';
+        star.innerHTML = '<i class="fas fa-heart"></i>';
+        thumb.appendChild(star);
+      } else if (!liked && star) {
+        star.remove();
+      }
+    });
+
+    // ✅ Update player + fullscreen art star (if current song)
     if (State.currentSong && State.currentSong.id === songId) {
       this.updateLikeBtn(liked);
+
+      const artEl = document.querySelector(".now-playing-art");
+      const fsArtEl = document.querySelector(".fs-art");
+      [artEl, fsArtEl].forEach(el => {
+        if (!el) return;
+        let star = el.querySelector('.liked-star');
+        if (liked && !star) {
+          star = document.createElement('div');
+          star.className = 'liked-star';
+          star.innerHTML = '<i class="fas fa-heart"></i>';
+          el.appendChild(star);
+        } else if (!liked && star) {
+          star.remove();
+        }
+      });
     }
   },
 
@@ -397,6 +473,8 @@ const UI = {
 
     const liked     = [...State.liked];
     const playlists = State.playlists;
+     const hasStats = Object.keys(State.songPlayCounts).length > 0;
+    const hasLiked = State.liked.size > 0;
 
     let html =
       '<div class="section-header">' +
@@ -408,7 +486,48 @@ const UI = {
           '<i class="fas fa-plus"></i> New Playlist' +
         '</button>' +
       '</div>';
+     if (hasStats || hasLiked) {
+      html +=
+        '<div class="section-header" style="margin-top:24px;">' +
+          '<div><div class="section-title" style="font-size:18px;">✨ Smart Playlists</div></div>' +
+        '</div>' +
+        '<div class="cards-grid">';
 
+      if (hasLiked) {
+        html +=
+          '<div class="playlist-card stagger-item" onclick="PlaylistManager.openSmartPlaylist(\'recent-liked\')">' +
+            '<div class="playlist-cover gradient-1" style="font-size:48px;">💚</div>' +
+            '<div class="card-title">Recently Loved</div>' +
+            '<div class="card-sub">Your latest favorites</div>' +
+            '<button class="card-play" onclick="event.stopPropagation(); PlaylistManager.playRecentlyLiked()">' +
+              '<i class="fas fa-play"></i>' +
+            '</button>' +
+          '</div>';
+      }
+
+      if (hasStats) {
+        html +=
+          '<div class="playlist-card stagger-item" onclick="PlaylistManager.openSmartPlaylist(\'most-played\')">' +
+            '<div class="playlist-cover gradient-3" style="font-size:48px;">🔥</div>' +
+            '<div class="card-title">Most Played</div>' +
+            '<div class="card-sub">Your top tracks</div>' +
+            '<button class="card-play" onclick="event.stopPropagation(); PlaylistManager.playMostPlayed()">' +
+              '<i class="fas fa-play"></i>' +
+            '</button>' +
+          '</div>' +
+          '<div class="playlist-card stagger-item" onclick="PlaylistManager.openSmartPlaylist(\'made-for-you\')">' +
+            '<div class="playlist-cover gradient-6" style="font-size:48px;">✨</div>' +
+            '<div class="card-title">Made For You</div>' +
+            '<div class="card-sub">Personalized mix</div>' +
+            '<button class="card-play" onclick="event.stopPropagation(); PlaylistManager.playMadeForYou()">' +
+              '<i class="fas fa-play"></i>' +
+            '</button>' +
+          '</div>';
+      }
+
+      html += '</div>';
+    }
+// Playlists section
     if (playlists.length > 0) {
       html +=
         '<div class="section-header" style="margin-top:24px;">' +

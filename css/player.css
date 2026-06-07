@@ -1,9 +1,10 @@
 /* ============================================================
    PLAYER — Premium Mini Player + Fullscreen
+   FIX: Mobile fullscreen bottom buttons visibility
 ============================================================ */
 
 /* ═══════════════════════════════════════════════════════
-   MINI PROGRESS BAR (Top thin line on player bar)
+   MINI PROGRESS BAR
 ═══════════════════════════════════════════════════════ */
 .mini-progress {
   position: absolute;
@@ -25,7 +26,6 @@
   box-shadow: 0 0 8px rgba(29,185,84,0.5);
 }
 
-/* Desktop: hide mini progress (full progress bar already shown) */
 @media (min-width: 901px) {
   .mini-progress {
     display: none;
@@ -33,7 +33,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   NOW PLAYING (Player Bar)
+   NOW PLAYING (Mini Player Bar)
 ═══════════════════════════════════════════════════════ */
 .now-playing {
   display: flex;
@@ -136,7 +136,6 @@
   color: var(--accent);
 }
 
-/* Mobile-only buttons (Lyrics, Queue, More) */
 .np-btn-mobile {
   width: 34px;
   height: 34px;
@@ -150,7 +149,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   PLAYER CENTER (Desktop Controls)
+   PLAYER CENTER (Desktop)
 ═══════════════════════════════════════════════════════ */
 .player-center {
   flex: 1;
@@ -386,7 +385,6 @@
 
 .extra-btn.active { color: var(--accent); }
 
-/* Visualizer bars */
 .mini-visualizer {
   display: flex;
   align-items: flex-end;
@@ -414,6 +412,7 @@
 
 /* ═══════════════════════════════════════════════════════
    FULLSCREEN PLAYER (Premium)
+   FIX: Scrollable content, fits any screen
 ═══════════════════════════════════════════════════════ */
 #fullscreen-player {
   position: fixed;
@@ -425,6 +424,7 @@
   pointer-events: none;
   transform: translateY(100%);
   transition: transform 0.4s var(--ease-out), opacity 0.3s ease;
+  overflow: hidden;
 }
 
 #fullscreen-player.open {
@@ -433,7 +433,6 @@
   transform: translateY(0);
 }
 
-/* Swipe down state */
 #fullscreen-player.swiping {
   transition: none;
 }
@@ -466,7 +465,6 @@
   );
 }
 
-/* Color-adaptive overlay (set by JS) */
 .fs-bg.color-tint {
   background: linear-gradient(
     180deg,
@@ -519,30 +517,32 @@
   letter-spacing: 1.2px;
 }
 
-/* Main content */
+/* ✅ FIXED: Main content scrollable on mobile if needed */
 .fs-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 40px;
-  padding-bottom: max(40px, env(safe-area-inset-bottom));
+  justify-content: flex-start;
+  padding: 12px 24px 30px;
+  padding-bottom: max(30px, env(safe-area-inset-bottom));
   max-width: 500px;
   width: 100%;
   margin: 0 auto;
   z-index: 2;
+  gap: 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Album art */
+/* ✅ FIXED: Album art smaller on mobile to fit everything */
 .fs-art {
-  width: min(78vw, 380px);
-  height: min(78vw, 380px);
+  width: min(68vw, 320px);
+  height: min(68vw, 320px);
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 25px 70px rgba(0,0,0,0.6);
   flex-shrink: 0;
-  margin-top: 10px;
   transition: transform 0.5s var(--ease-out);
 }
 
@@ -565,7 +565,8 @@
 .fs-meta {
   text-align: center;
   width: 100%;
-  margin: 20px 0 4px;
+  margin: 8px 0 0;
+  flex-shrink: 0;
 }
 
 .fs-title {
@@ -590,10 +591,11 @@
   text-overflow: ellipsis;
 }
 
-/* Progress section */
+/* Progress */
 .fs-progress-section {
   width: 100%;
-  margin: 8px 0;
+  margin: 4px 0;
+  flex-shrink: 0;
 }
 
 .fs-progress-section .progress-track {
@@ -615,13 +617,14 @@
   color: rgba(255,255,255,0.6);
 }
 
-/* Controls */
+/* Main controls */
 .fs-controls {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  margin: 12px 0 8px;
+  margin: 8px 0 4px;
+  flex-shrink: 0;
 }
 
 .fs-ctrl-btn {
@@ -660,8 +663,8 @@
 }
 
 .fs-play-btn {
-  width: 70px !important;
-  height: 70px !important;
+  width: 68px !important;
+  height: 68px !important;
   background: #fff !important;
   color: #000 !important;
   font-size: 24px !important;
@@ -676,21 +679,22 @@
 
 .fs-play-btn:active { transform: scale(0.96) !important; }
 
-/* ✅ Bottom action icons (5 properly spaced) */
+/* ✅ FIXED: Bottom action icons (5 buttons, always visible) */
 .fs-bottom-actions {
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: space-around;
   width: 100%;
-  margin-top: 12px;
+  margin-top: 8px;
   padding: 0 4px;
+  flex-shrink: 0;
 }
 
 .fs-action-btn {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   font-size: 17px;
@@ -699,6 +703,7 @@
   border: none;
   cursor: pointer;
   transition: var(--t-fast);
+  flex-shrink: 0;
 }
 
 .fs-action-btn:hover {
@@ -801,11 +806,13 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   DESKTOP — Fullscreen adjustments
+   DESKTOP — Fullscreen
 ═══════════════════════════════════════════════════════ */
 @media (min-width: 901px) {
   .fs-content {
     max-width: 480px;
+    justify-content: center;
+    gap: 16px;
   }
 
   .fs-art {
@@ -815,12 +822,18 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   MOBILE — Fullscreen tweaks
+   MOBILE FULLSCREEN — Compact layout
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .fs-content {
-    padding: 12px 18px 30px;
-    padding-bottom: max(30px, env(safe-area-inset-bottom));
+    padding: 8px 18px 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .fs-art {
+    width: min(65vw, 280px);
+    height: min(65vw, 280px);
   }
 
   .fs-title {
@@ -832,8 +845,8 @@
   }
 
   .fs-play-btn {
-    width: 64px !important;
-    height: 64px !important;
+    width: 60px !important;
+    height: 60px !important;
     font-size: 22px !important;
   }
 
@@ -845,16 +858,26 @@
 
   .fs-controls {
     gap: 10px;
+    margin: 4px 0;
   }
 
   .fs-action-btn {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     font-size: 16px;
   }
 
   .fs-bottom-actions {
     padding: 0;
+    margin-top: 4px;
+  }
+
+  .fs-meta {
+    margin: 4px 0 0;
+  }
+
+  .fs-progress-section {
+    margin: 0;
   }
 
   .fs-lyrics-lines .lyric-line {
@@ -866,7 +889,13 @@
   }
 }
 
+/* Very small screens (older phones) */
 @media (max-width: 360px) {
+  .fs-art {
+    width: min(60vw, 240px);
+    height: min(60vw, 240px);
+  }
+
   .fs-title {
     font-size: 17px;
   }
@@ -882,8 +911,29 @@
   }
 
   .fs-action-btn {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     font-size: 14px;
+  }
+
+  .fs-play-btn {
+    width: 56px !important;
+    height: 56px !important;
+    font-size: 20px !important;
+  }
+}
+
+/* Landscape mode — extra compact */
+@media (max-height: 600px) and (orientation: landscape) {
+  .fs-content {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .fs-art {
+    width: 180px;
+    height: 180px;
   }
 }

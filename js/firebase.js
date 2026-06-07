@@ -288,18 +288,20 @@ const FB = {
         .toUpperCase();
 
       if (user.photoURL) {
-        // Rebuild avatar with image
-        avatarBtn.innerHTML =
-          '<img src="' + user.photoURL + '" alt="' + UI.escHtml(displayName) +
-          '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">' +
-          '<div id="user-menu" class="hidden user-menu">' +
-            '<div class="user-menu-name" id="user-menu-name">' + UI.escHtml(displayName) + '</div>' +
-            '<div class="ctx-item" onclick="openModal(\'modal-stats\')"><i class="fas fa-chart-line"></i> Your Stats</div>' +
-            '<div class="ctx-item" onclick="FB.signOut()"><i class="fas fa-sign-out-alt"></i> Sign Out</div>' +
-          '</div>';
-      } else {
-        if (avatarText) avatarText.textContent = initials;
-      }
+  // ✅ Use referrerpolicy to fix Google photo CORS
+  avatarBtn.innerHTML =
+    '<img src="' + user.photoURL + '" alt="' + UI.escHtml(displayName) +
+    '" referrerpolicy="no-referrer" crossorigin="anonymous" ' +
+    'style="width:100%;height:100%;border-radius:50%;object-fit:cover;" ' +
+    'onerror="this.outerHTML=\'<span style=font-weight:700;font-size:13px;>' + initials + '</span>\'">' +
+    '<div id="user-menu" class="hidden user-menu">' +
+      '<div class="user-menu-name" id="user-menu-name">' + UI.escHtml(displayName) + '</div>' +
+      '<div class="ctx-item" onclick="openModal(\'modal-stats\')"><i class="fas fa-chart-line"></i> Your Stats</div>' +
+      '<div class="ctx-item" onclick="FB.signOut()"><i class="fas fa-sign-out-alt"></i> Sign Out</div>' +
+    '</div>';
+} else {
+  if (avatarText) avatarText.textContent = initials;
+}
       avatarBtn.title = displayName;
       if (menuName) menuName.textContent = displayName;
     } else {

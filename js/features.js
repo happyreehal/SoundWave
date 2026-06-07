@@ -1,6 +1,7 @@
 /* ============================================================
    FEATURES — EQ, Sleep, Lyrics, ContextMenu, Search,
-              PlaylistManager, MiniPlayer
+              PlaylistManager, MiniPlayer, ArtistPage, MobileMenu
+   FIX: Playlist mode pass explicit queue, search context set
 ============================================================ */
 
 /* ═══════════════════════════════════════════════════════
@@ -63,7 +64,7 @@ const EQ = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   SLEEP TIMER (with End of Song)
+   SLEEP TIMER
 ═══════════════════════════════════════════════════════ */
 const SleepTimer = {
   interval: null,
@@ -250,18 +251,16 @@ const Lyrics = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   CONTEXT MENU (Bug-fixed — uses song object directly)
+   CONTEXT MENU
 ═══════════════════════════════════════════════════════ */
 const ContextMenu = {
   currentSong: null,
 
   open(event, songIndex) {
-    // Legacy method — kept for compatibility
     const song = State.queue[songIndex] || State.currentSong;
     this.openForSong(event, song?.id);
   },
 
-  // ✅ NEW: Direct song ID based (fixes "Water → I Remember" bug)
   openForSong(event, songId) {
     event.preventDefault();
     event.stopPropagation();
@@ -345,7 +344,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") ContextMenu.close(); });
 
 /* ═══════════════════════════════════════════════════════
-   LONG PRESS DETECTION (Mobile context menu)
+   LONG PRESS DETECTION
 ═══════════════════════════════════════════════════════ */
 const LongPress = {
   pressTimer: null,
@@ -368,7 +367,6 @@ const LongPress = {
         if (navigator.vibrate) navigator.vibrate(50);
         target.classList.add("long-pressing");
 
-        // Show context menu
         ContextMenu.openForSong({
           preventDefault: () => {},
           stopPropagation: () => {},
@@ -404,7 +402,7 @@ const LongPress = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   SEARCH (with suggestions + did you mean)
+   SEARCH
 ═══════════════════════════════════════════════════════ */
 const Search = {
   debounceTimer: null,
@@ -471,7 +469,7 @@ const Search = {
     results.forEach(s => {
       UI._registerSong(s);
       html +=
-        '<div class="suggestion-item" onclick="Player.playFromRegistry(\'' + s.id + '\'); Search.hideSuggestions();">' +
+        '<div class="suggestion-item" onclick="Search.playSuggestion(\'' + s.id + '\', \'' + UI.escHtml(query).replace(/'/g, "\\'") + '\'); Search.hideSuggestions();">' +
           '<div class="suggestion-icon">' +
           (s.artwork ? '<img src="' + s.artwork + '" loading="lazy">' : '<i class="fas fa-music"></i>') +
           '</div>' +
@@ -485,6 +483,16 @@ const Search = {
 
     dropdown.innerHTML = html;
     dropdown.classList.remove("hidden");
+  },
+
+  /* ✅ NEW: Play song from suggestion + set search context for auto-extend */
+  playSuggestion(songId, query) {
+    const song = window.__songRegistry["s_" + songId];
+    if (!song) return;
+    // Set search context so when song ends, similar songs auto-play
+    State._searchContext = query;
+    State._isPlaylistMode = false;
+    Player.playSong(song);
   },
 
   hideSuggestions() {
@@ -519,11 +527,16 @@ const Search = {
     const songs = await API.search(query, 20);
 
     if (songs.length === 0) {
-      // Fallback: search by first word
       const firstWord = query.split(" ")[0];
       const related = firstWord !== query ? await API.search(firstWord, 10) : [];
 
       if (related.length > 0) {
+        related.forEach(s => UI._registerSong(s));
+        // ✅ Set search context + queue
+        State.queue = [...related];
+        State._searchContext = query;
+        State._isPlaylistMode = false;
+
         const suggestion = related[0].artist;
         resultsSection.innerHTML =
           '<div class="did-you-mean">' +
@@ -554,9 +567,12 @@ const Search = {
       return;
     }
 
-    State.queue = songs;
+    // ✅ Register all + set queue + context
+    songs.forEach(s => UI._registerSong(s));
+    State.queue = [...songs];
+    State._searchContext = query;       // ✅ Remember for auto-extend
+    State._isPlaylistMode = false;      // ✅ Search mode, not playlist
 
-    // Check if we should show "Did you mean?"
     const didYouMean = await API.getDidYouMean(query, songs.length);
     let dymHtml = "";
     if (didYouMean) {
@@ -593,7 +609,121 @@ const Search = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   MINI PLAYER (More menu / Bottom sheet)
+   ARTIST PAGE
+═══════════════════════════════════════════════════════ */
+const ArtistPage = {
+  async open(artistName) {
+    if (!artistName) return;
+
+    const cleanName = artistName.split(/[,&]/)[0].trim();
+    if (!cleanName) return;
+
+    UI.navigateTo("search");
+    const resultsSection = document.getElementById("search-results");
+    const categories = document.getElementById("search-categories");
+    if (resultsSection) resultsSection.style.display = "block";
+    if (categories) categories.style.display = "none";
+
+    if (resultsSection) {
+      resultsSection.innerHTML =
+        '<button class="see-all" onclick="UI.navigate(\'home\')" style="margin-bottom:20px;">' +
+          '<i class="fas fa-arrow-left"></i> Back' +
+        '</button>' +
+        '<div style="text-align:center;padding:40px 20px;">' +
+          '<div class="spinner" style="margin:0 auto 16px;"></div>' +
+          '<p style="color:var(--text-muted);">Loading ' + UI.escHtml(cleanName) + '...</p>' +
+        '</div>';
+    }
+
+    const songs = await API.search(cleanName, 30);
+
+    if (songs.length === 0) {
+      resultsSection.innerHTML =
+        '<button class="see-all" onclick="UI.navigate(\'home\')" style="margin-bottom:20px;">' +
+          '<i class="fas fa-arrow-left"></i> Back' +
+        '</button>' +
+        '<div class="empty-state">' +
+          '<i class="fas fa-user empty-icon"></i>' +
+          '<h3>No songs found</h3>' +
+          '<p>Couldn\'t find songs by ' + UI.escHtml(cleanName) + '</p>' +
+        '</div>';
+      return;
+    }
+
+    const artistSongs = songs.filter(s =>
+      s.artist && s.artist.toLowerCase().includes(cleanName.toLowerCase())
+    );
+    const finalSongs = artistSongs.length > 0 ? artistSongs : songs;
+
+    const firstSong = finalSongs[0];
+    const artwork = firstSong.artwork;
+
+    finalSongs.forEach(s => UI._registerSong(s));
+    State.queue = [...finalSongs];
+    State._isPlaylistMode = false;
+    State._searchContext = cleanName;
+
+    let html =
+      '<button class="see-all" onclick="UI.navigate(\'home\')" style="margin-bottom:20px;">' +
+        '<i class="fas fa-arrow-left"></i> Back' +
+      '</button>' +
+      '<div class="playlist-detail-header">' +
+        '<div class="playlist-detail-cover gradient-2" style="border-radius:50%;overflow:hidden;">' +
+          (artwork
+            ? '<img src="' + artwork + '" alt="' + UI.escHtml(cleanName) + '" style="width:100%;height:100%;object-fit:cover;">'
+            : '<i class="fas fa-user" style="font-size:80px;color:#fff;"></i>') +
+        '</div>' +
+        '<div class="playlist-detail-info">' +
+          '<div class="playlist-detail-label">Artist</div>' +
+          '<div class="playlist-detail-title">' + UI.escHtml(cleanName) + '</div>' +
+          '<div class="playlist-detail-meta">' + finalSongs.length + ' song' + (finalSongs.length !== 1 ? 's' : '') + '</div>' +
+          '<div class="playlist-detail-actions">' +
+            '<button class="hero-play" onclick="ArtistPage.playAll()"><i class="fas fa-play"></i> Play All</button>' +
+            '<button class="see-all" onclick="ArtistPage.shuffle()"><i class="fas fa-random"></i> Shuffle</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="section-header" style="margin-top:24px;">' +
+        '<div><div class="section-title" style="font-size:18px;">🎤 Popular</div></div>' +
+      '</div>' +
+      '<div class="cards-grid">' +
+        finalSongs.slice(0, 8).map((s, i) => UI.renderCard(s, i, finalSongs)).join("") +
+      '</div>' +
+
+      '<div class="section-header" style="margin-top:8px;">' +
+        '<div><div class="section-title" style="font-size:18px;">All Songs</div></div>' +
+      '</div>' +
+      '<div class="song-list">' +
+        '<div class="song-list-head"><span>#</span><span>Title</span><span>Album</span><span><i class="fas fa-clock"></i></span><span></span></div>' +
+        finalSongs.map((s, i) => UI.renderSongRow(s, i)).join("") +
+      '</div>';
+
+    resultsSection.innerHTML = html;
+  },
+
+  playAll() {
+    if (State.queue.length === 0) return;
+    State.queueIndex = 0;
+    State._isPlaylistMode = false; // Artist mode is like search — allow auto-extend
+    Player.playSong(State.queue[0], State.queue);
+  },
+
+  shuffle() {
+    if (State.queue.length === 0) return;
+    State.isShuffle = true;
+    document.querySelectorAll("#btn-shuffle, #fs-shuffle").forEach(btn => {
+      if (btn) btn.classList.add("active");
+    });
+    const randomIdx = Math.floor(Math.random() * State.queue.length);
+    State.queueIndex = randomIdx;
+    State._isPlaylistMode = false;
+    Player.playSong(State.queue[randomIdx], State.queue);
+  },
+};
+
+/* ═══════════════════════════════════════════════════════
+   MINI PLAYER (More menu)
 ═══════════════════════════════════════════════════════ */
 const MiniPlayer = {
   _backdrop: null,
@@ -619,7 +749,6 @@ const MiniPlayer = {
         : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--bg-elevated);">🎵</div>';
     }
 
-    // Backdrop
     if (!this._backdrop) {
       this._backdrop = document.createElement("div");
       this._backdrop.className = "sheet-backdrop";
@@ -639,7 +768,6 @@ const MiniPlayer = {
     if (this._backdrop) this._backdrop.style.display = "none";
   },
 
-  /* Actions */
   actionAddToPlaylist() {
     this.closeMore();
     if (!State.currentSong) return;
@@ -662,7 +790,8 @@ const MiniPlayer = {
 };
 
 /* ═══════════════════════════════════════════════════════
-   PLAYLIST MANAGER (Full CRUD + Share + Rename + Delete)
+   PLAYLIST MANAGER
+   FIX: Pass explicit queue + set playlist mode FIRST
 ═══════════════════════════════════════════════════════ */
 const PlaylistManager = {
   pendingSong: null,
@@ -732,7 +861,7 @@ const PlaylistManager = {
     }
   },
 
-  /* OPEN (with responsive mobile layout) */
+  /* OPEN */
   openPlaylist(id) {
     const pl = State.playlists.find(p => p.id === id);
     if (!pl) return;
@@ -785,7 +914,7 @@ const PlaylistManager = {
         UI._registerSong(s);
         const active = State.currentSong && State.currentSong.id === s.id;
         html +=
-          '<div class="song-row ' + (active ? "active" : "") + '" onclick="Player.playFromRegistry(\'' + s.id + '\')" data-id="' + s.id + '">' +
+          '<div class="song-row ' + (active ? "active" : "") + '" onclick="PlaylistManager.playPlaylistFromSong(\'' + id + '\', \'' + s.id + '\')" data-id="' + s.id + '">' +
             '<div class="song-num">' +
               '<span class="song-num-text">' + (i + 1) + '</span>' +
               '<span class="song-play-btn"><i class="fas fa-play"></i></span>' +
@@ -814,17 +943,45 @@ const PlaylistManager = {
     page.innerHTML = html;
   },
 
-  /* PLAY */
+  /* ✅ PLAY — Pass explicit queue + set playlist mode first */
   playPlaylist(id) {
     const pl = State.playlists.find(p => p.id === id);
     if (!pl || pl.songs.length === 0) return;
 
-    // Register all songs
     pl.songs.forEach(s => UI._registerSong(s));
 
+    // ✅ Set queue + flags FIRST
     State.queue = [...pl.songs];
     State.queueIndex = 0;
-    Player.playSong(pl.songs[0]);
+    State._isPlaylistMode = true;
+    State._searchContext = null;  // Clear search context
+
+    console.log("▶ Playing playlist:", pl.name, "| Songs:", pl.songs.length);
+
+    // ✅ Pass queue explicitly so Player doesn't reset playlist mode
+    Player.playSong(pl.songs[0], pl.songs);
+  },
+
+  /* ✅ Play playlist starting from specific song */
+  playPlaylistFromSong(playlistId, songId) {
+    const pl = State.playlists.find(p => p.id === playlistId);
+    if (!pl || pl.songs.length === 0) return;
+
+    pl.songs.forEach(s => UI._registerSong(s));
+
+    const startIdx = pl.songs.findIndex(s => s.id === songId);
+    if (startIdx === -1) return;
+
+    // ✅ Set queue + flags FIRST
+    State.queue = [...pl.songs];
+    State.queueIndex = startIdx;
+    State._isPlaylistMode = true;
+    State._searchContext = null;
+
+    console.log("▶ Playing playlist:", pl.name, "from index:", startIdx);
+
+    // ✅ Pass queue explicitly
+    Player.playSong(pl.songs[startIdx], pl.songs);
   },
 
   playLikedSongs() {
@@ -832,9 +989,13 @@ const PlaylistManager = {
       .map(id => window.__songRegistry["s_" + id])
       .filter(Boolean);
     if (liked.length === 0) return;
+
     State.queue = [...liked];
     State.queueIndex = 0;
-    Player.playSong(liked[0]);
+    State._isPlaylistMode = true;
+    State._searchContext = null;
+
+    Player.playSong(liked[0], liked);
   },
 
   /* ADD TO PLAYLIST */
@@ -908,5 +1069,202 @@ const PlaylistManager = {
     } else {
       UI.showShare(url, song.title);
     }
+  },
+
+  /* ═══════════════════════════════════════════════════════
+     SMART PLAYLISTS
+  ═══════════════════════════════════════════════════════ */
+  playRecentlyLiked() {
+    const songs = State.getRecentlyLiked();
+    if (songs.length === 0) {
+      UI.showToast("No liked songs yet", "fas fa-info-circle", "blue");
+      return;
+    }
+    State.queue = [...songs];
+    State.queueIndex = 0;
+    State._isPlaylistMode = true;
+    State._searchContext = null;
+    Player.playSong(songs[0], songs);
+    UI.showToast("Playing Recently Loved 💚", "fas fa-heart", "green");
+  },
+
+  playMostPlayed() {
+    const songs = State.getMostPlayedSongs(20);
+    if (songs.length === 0) {
+      UI.showToast("Not enough listening history yet", "fas fa-info-circle", "blue");
+      return;
+    }
+    State.queue = [...songs];
+    State.queueIndex = 0;
+    State._isPlaylistMode = true;
+    State._searchContext = null;
+    Player.playSong(songs[0], songs);
+    UI.showToast("Playing Most Played 🔥", "fas fa-fire", "green");
+  },
+
+  async playMadeForYou() {
+    const topArtist = State.getTopArtistForRecommendations();
+    if (!topArtist) {
+      UI.showToast("Listen more to get recommendations", "fas fa-info-circle", "blue");
+      return;
+    }
+    UI.showToast("Loading your mix...", "fas fa-magic", "blue");
+    const songs = await API.search(topArtist, 20);
+    if (songs.length === 0) return;
+    songs.forEach(s => UI._registerSong(s));
+    State.queue = [...songs];
+    State.queueIndex = 0;
+    State._isPlaylistMode = false;  // Allow auto-extend with more artist songs
+    State._searchContext = topArtist;
+    Player.playSong(songs[0], songs);
+    UI.showToast("Made for you ✨", "fas fa-magic", "green");
+  },
+
+  /* Open smart playlist detail */
+  async openSmartPlaylist(type) {
+    const page = document.getElementById("page-library");
+    if (!page) return;
+
+    UI.navigateTo("library");
+
+    let songs = [];
+    let title = "";
+    let icon = "";
+    let gradient = "";
+    let sub = "";
+    let onPlay = "";
+
+    if (type === "recent-liked") {
+      songs = State.getRecentlyLiked();
+      title = "Recently Loved";
+      icon = "💚";
+      gradient = "gradient-1";
+      sub = songs.length + " song" + (songs.length !== 1 ? "s" : "");
+      onPlay = "PlaylistManager.playRecentlyLiked()";
+    } else if (type === "most-played") {
+      songs = State.getMostPlayedSongs(20);
+      title = "Most Played";
+      icon = "🔥";
+      gradient = "gradient-3";
+      sub = songs.length + " song" + (songs.length !== 1 ? "s" : "");
+      onPlay = "PlaylistManager.playMostPlayed()";
+    } else if (type === "made-for-you") {
+      const topArtist = State.getTopArtistForRecommendations();
+      if (!topArtist) {
+        UI.showToast("Listen more to get recommendations", "fas fa-info-circle", "blue");
+        UI.renderLibrary();
+        return;
+      }
+      page.innerHTML =
+        '<div style="text-align:center;padding:60px 20px;">' +
+          '<div class="spinner" style="margin:0 auto 16px;"></div>' +
+          '<p>Loading your personalized mix...</p>' +
+        '</div>';
+      songs = await API.search(topArtist, 20);
+      title = "Made For You";
+      icon = "✨";
+      gradient = "gradient-6";
+      sub = "Based on your love for " + topArtist;
+      onPlay = "PlaylistManager.playMadeForYou()";
+    }
+
+    if (songs.length === 0) {
+      page.innerHTML =
+        '<button class="see-all" onclick="UI.renderLibrary()" style="margin-bottom:20px;"><i class="fas fa-arrow-left"></i> Back</button>' +
+        '<div class="empty-state">' +
+          '<i class="fas fa-music empty-icon"></i>' +
+          '<h3>Nothing here yet</h3>' +
+          '<p>Listen to more songs to fill this!</p>' +
+        '</div>';
+      return;
+    }
+
+    songs.forEach(s => UI._registerSong(s));
+
+    let html =
+      '<button class="see-all" onclick="UI.renderLibrary()" style="margin-bottom:20px;">' +
+        '<i class="fas fa-arrow-left"></i> Back to Library' +
+      '</button>' +
+      '<div class="playlist-detail-header">' +
+        '<div class="playlist-detail-cover ' + gradient + '" style="font-size:80px;">' + icon + '</div>' +
+        '<div class="playlist-detail-info">' +
+          '<div class="playlist-detail-label">Smart Playlist</div>' +
+          '<div class="playlist-detail-title">' + UI.escHtml(title) + '</div>' +
+          '<div class="playlist-detail-meta">' + UI.escHtml(sub) + '</div>' +
+          '<div class="playlist-detail-actions">' +
+            '<button class="hero-play" onclick="' + onPlay + '"><i class="fas fa-play"></i> Play All</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="song-list">' +
+        '<div class="song-list-head"><span>#</span><span>Title</span><span>Album</span><span><i class="fas fa-clock"></i></span><span></span></div>';
+
+    songs.forEach((s, i) => {
+      html += UI.renderSongRow(s, i);
+    });
+
+    html += '</div>';
+    page.innerHTML = html;
+  },
+};
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE MENU
+═══════════════════════════════════════════════════════ */
+const MobileMenu = {
+  _backdrop: null,
+
+  open() {
+    Player.haptic(8);
+
+    let sheet = document.getElementById("mobile-menu-sheet");
+    if (!sheet) {
+      sheet = document.createElement("div");
+      sheet.id = "mobile-menu-sheet";
+      sheet.className = "bottom-sheet";
+      sheet.innerHTML =
+        '<div class="bottom-sheet-handle"></div>' +
+        '<div class="bottom-sheet-header" style="border:none;padding:0 4px 16px;">' +
+          '<div style="font-size:16px;font-weight:800;">Menu</div>' +
+        '</div>' +
+        '<div class="bottom-sheet-actions">' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); openModal(\'modal-stats\');">' +
+            '<i class="fas fa-chart-line"></i><span>Your Stats</span>' +
+          '</div>' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); openModal(\'modal-eq\');">' +
+            '<i class="fas fa-sliders-h"></i><span>Equalizer</span>' +
+          '</div>' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); openModal(\'modal-sleep\');">' +
+            '<i class="fas fa-moon"></i><span>Sleep Timer</span>' +
+          '</div>' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); openModal(\'modal-shortcuts\');">' +
+            '<i class="fas fa-keyboard"></i><span>Keyboard Shortcuts</span>' +
+          '</div>' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); UI.openFullscreen();">' +
+            '<i class="fas fa-expand"></i><span>Open Fullscreen Player</span>' +
+          '</div>' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); FB.signOut();" style="color:#ef4444;">' +
+            '<i class="fas fa-sign-out-alt"></i><span>Sign Out</span>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(sheet);
+    }
+
+    if (!this._backdrop) {
+      this._backdrop = document.createElement("div");
+      this._backdrop.className = "sheet-backdrop";
+      this._backdrop.onclick = () => this.close();
+      document.body.appendChild(this._backdrop);
+    } else {
+      this._backdrop.style.display = "";
+    }
+
+    sheet.classList.remove("hidden");
+  },
+
+  close() {
+    const sheet = document.getElementById("mobile-menu-sheet");
+    if (sheet) sheet.classList.add("hidden");
+    if (this._backdrop) this._backdrop.style.display = "none";
   },
 };

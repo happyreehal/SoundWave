@@ -178,7 +178,7 @@
   </div>
 
   <div class="fs-content">
-    <div class="fs-art">
+        <div class="fs-art" onclick="UI.openFsLyrics()" style="cursor:pointer;" data-tip="Tap for lyrics">
       <div style="width:100%;height:100%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:80px;">🎵</div>
     </div>
 
@@ -472,6 +472,9 @@
         <div id="search-suggestions" class="search-suggestions hidden"></div>
       </div>
       <div class="topbar-right">
+        <button class="topbar-icon-btn" id="mobile-menu-btn" onclick="MobileMenu.open()" data-tip="Menu">
+  <i class="fas fa-ellipsis-v"></i>
+</button>
         <button class="topbar-icon-btn" onclick="openModal('modal-stats')" data-tip="Stats">
           <i class="fas fa-chart-line"></i>
         </button>

@@ -1,5 +1,6 @@
 /* ============================================================
    API.JS — iTunes + Saavn + Audius + LRCLIB + Color extraction
+   + Country hint for Indian queries (better Punjabi/Hindi results)
 ============================================================ */
 const API = {
   ITUNES_BASE: "https://itunes.apple.com",
@@ -24,7 +25,7 @@ const API = {
   ],
 
   /* ═══════════════════════════════════════════════════════
-     Fetch helper with timeout
+     Helpers
   ═══════════════════════════════════════════════════════ */
   _fetchJsonWithTimeout(url, ms = 12000) {
     const controller = new AbortController();
@@ -34,8 +35,33 @@ const API = {
       .finally(() => clearTimeout(t));
   },
 
+  _getPrimaryArtist(artistStr) {
+    if (!artistStr) return "";
+    return artistStr
+      .split(/[,&]| feat\.?| ft\.?| featuring | with /i)[0]
+      .trim();
+  },
+
+  _cleanTitle(title) {
+    if (!title) return "";
+    return title
+      .replace(/\(feat[^)]*\)/gi, "")
+      .replace(/\(ft[^)]*\)/gi, "")
+      .replace(/\(featuring[^)]*\)/gi, "")
+      .replace(/\(with[^)]*\)/gi, "")
+      .replace(/\s+feat\.?\s+.*/i, "")
+      .replace(/\s+ft\.?\s+.*/i, "")
+      .trim();
+  },
+
+  /* ✅ NEW: Detect if query is Indian-language related */
+  _isIndianQuery(q) {
+    if (!q) return false;
+    return /\b(punjabi|hindi|bollywood|desi|indian|sufi|bhojpuri|tamil|telugu|kannada|marathi|gujarati|bengali|qawwali|ghazal|filmi)\b/i.test(q);
+  },
+
   /* ═══════════════════════════════════════════════════════
-     SEARCH (with multiple strategies)
+     SEARCH — with country hint for Indian queries
   ═══════════════════════════════════════════════════════ */
   async search(query, limit = 20) {
     if (!query || !query.trim()) return [];
@@ -47,7 +73,6 @@ const API = {
     }
 
     try {
-      // Multiple query variations for better matching
       const queries = [
         query.trim(),
         query.trim().split(" ").slice(0, 3).join(" "),
@@ -59,10 +84,14 @@ const API = {
       for (const q of queries) {
         if (!q || allResults.length >= limit) break;
 
+        // ✅ Auto-detect: Indian query → country=in, else country=us
+        const country = this._isIndianQuery(q) ? "in" : "us";
+
         const url = this.SERVER
           ? this.SERVER + "/api/search?q=" + encodeURIComponent(q) + "&limit=" + limit
           : this.ITUNES_BASE + "/search?term=" + encodeURIComponent(q) +
-            "&media=music&entity=song&limit=" + limit;
+            "&media=music&entity=song&limit=" + limit +
+            "&country=" + country;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -76,7 +105,6 @@ const API = {
             .map(t => API.formatItunesTrack(t));
         }
 
-        // Dedupe
         for (const r of results) {
           if (!seen.has(r.id)) {
             seen.add(r.id);
@@ -96,7 +124,7 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     SEARCH SUGGESTIONS (fast, for autocomplete)
+     SEARCH SUGGESTIONS
   ═══════════════════════════════════════════════════════ */
   async searchSuggestions(query, limit = 6) {
     if (!query || query.trim().length < 2) return [];
@@ -108,10 +136,14 @@ const API = {
     }
 
     try {
+      // ✅ Country hint for suggestions too
+      const country = this._isIndianQuery(query) ? "in" : "us";
+
       const url = this.SERVER
         ? this.SERVER + "/api/search?q=" + encodeURIComponent(query) + "&limit=" + limit
         : this.ITUNES_BASE + "/search?term=" + encodeURIComponent(query) +
-          "&media=music&entity=song&limit=" + limit;
+          "&media=music&entity=song&limit=" + limit +
+          "&country=" + country;
 
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       const data = await res.json();
@@ -135,23 +167,20 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     "DID YOU MEAN?" suggestion
-     Returns a corrected query if results were poor
+     "DID YOU MEAN?"
   ═══════════════════════════════════════════════════════ */
   async getDidYouMean(query, gotResults) {
     if (!query || gotResults > 5) return null;
 
-    // Try with first word only
     const firstWord = query.trim().split(" ")[0];
     if (firstWord.length < 3) return null;
 
     try {
       const results = await this.searchSuggestions(firstWord, 3);
       if (results && results.length > 0) {
-        // Suggest the artist of the first result
         const artistName = results[0].artist;
         if (artistName && artistName.toLowerCase() !== query.toLowerCase()) {
-          return artistName.split(",")[0].trim();
+          return this._getPrimaryArtist(artistName);
         }
       }
     } catch (e) {}
@@ -167,7 +196,7 @@ const API = {
 
     if (this.SERVER) {
       const url = await this.getSaavnFromServer(song);
-      if (url) { console.log("✅ JioSaavn"); return url; }
+      if (url) { console.log("✅ JioSaavn match"); return url; }
     }
 
     if (this.SERVER) {
@@ -181,7 +210,7 @@ const API = {
     }
 
     if (song.previewUrl) {
-      console.log("⚠️ iTunes 30sec preview");
+      console.log("⚠️ iTunes 30sec preview (full song not found)");
       if (typeof UI !== "undefined") {
         UI.showToast("30sec preview only", "fas fa-info-circle", "yellow");
       }
@@ -194,15 +223,21 @@ const API = {
 
   async getSaavnFromServer(song) {
     try {
+      const primaryArtist = this._getPrimaryArtist(song.artist || "");
+      const cleanTitle    = this._cleanTitle(song.title || "");
+
+      console.log("   Saavn query:", cleanTitle, "—", primaryArtist, "| Album:", song.album || "?");
+
       const url =
         this.SERVER + "/api/saavn?" +
-        "title=" + encodeURIComponent(song.title) +
-        "&artist=" + encodeURIComponent(song.artist || "") +
+        "title=" + encodeURIComponent(cleanTitle) +
+        "&artist=" + encodeURIComponent(primaryArtist) +
         "&album=" + encodeURIComponent(song.album || "");
 
       const data = await this._fetchJsonWithTimeout(url, 15000);
 
       if (data && data.success && data.url) {
+        console.log("   Saavn matched:", data.matched, "by", data.artist, "(score:" + data.score + ")");
         return data.url;
       }
       return null;
@@ -214,9 +249,12 @@ const API = {
 
   async getAudiusFromServer(song) {
     try {
+      const primaryArtist = this._getPrimaryArtist(song.artist || "");
+      const cleanTitle    = this._cleanTitle(song.title || "");
+
       const url =
-        this.SERVER + "/api/audius?title=" + encodeURIComponent(song.title) +
-        "&artist=" + encodeURIComponent(song.artist || "");
+        this.SERVER + "/api/audius?title=" + encodeURIComponent(cleanTitle) +
+        "&artist=" + encodeURIComponent(primaryArtist);
 
       const data = await this._fetchJsonWithTimeout(url, 12000);
 
@@ -231,7 +269,10 @@ const API = {
   },
 
   async getAudiusDirect(song) {
-    const query = song.title + " " + song.artist;
+    const primaryArtist = this._getPrimaryArtist(song.artist || "");
+    const cleanTitle    = this._cleanTitle(song.title || "");
+    const query = cleanTitle + " " + primaryArtist;
+
     for (const node of this.AUDIUS_NODES) {
       try {
         const res = await fetch(
@@ -245,7 +286,7 @@ const API = {
         if (!tracks.length) continue;
 
         const match = this.findBestMatch(
-          tracks, song.title, song.artist,
+          tracks, cleanTitle, primaryArtist,
           t => t.title,
           t => t.user && t.user.name
         );
@@ -262,11 +303,13 @@ const API = {
   async getLyrics(song) {
     if (!song) return null;
 
+    const primaryArtist = this._getPrimaryArtist(song.artist || "");
+    const cleanTitle    = this._cleanTitle(song.title || "");
+
     try {
-      // Strategy 1: title + artist + album
       const url1 = this.LYRICS_BASE + "/get?" +
-        "track_name="   + encodeURIComponent(song.title) +
-        "&artist_name=" + encodeURIComponent(song.artist) +
+        "track_name="   + encodeURIComponent(cleanTitle) +
+        "&artist_name=" + encodeURIComponent(primaryArtist) +
         "&album_name="  + encodeURIComponent(song.album || "");
       const res1 = await fetch(url1, { signal: AbortSignal.timeout(15000) });
       if (res1.ok) {
@@ -275,10 +318,9 @@ const API = {
         if (data.plainLyrics)  return this.parsePlainLyrics(data.plainLyrics, song.duration || 200);
       }
 
-      // Strategy 2: title + artist only
       const url2 = this.LYRICS_BASE + "/get?" +
-        "track_name="   + encodeURIComponent(song.title) +
-        "&artist_name=" + encodeURIComponent(song.artist);
+        "track_name="   + encodeURIComponent(cleanTitle) +
+        "&artist_name=" + encodeURIComponent(primaryArtist);
       const res2 = await fetch(url2, { signal: AbortSignal.timeout(15000) });
       if (res2.ok) {
         const data = await res2.json();
@@ -286,10 +328,9 @@ const API = {
         if (data.plainLyrics)  return this.parsePlainLyrics(data.plainLyrics, song.duration || 200);
       }
 
-      // Strategy 3: search endpoint
       const url3 = this.LYRICS_BASE + "/search?" +
-        "track_name="   + encodeURIComponent(song.title) +
-        "&artist_name=" + encodeURIComponent(song.artist);
+        "track_name="   + encodeURIComponent(cleanTitle) +
+        "&artist_name=" + encodeURIComponent(primaryArtist);
       const res3 = await fetch(url3, { signal: AbortSignal.timeout(15000) });
       if (res3.ok) {
         const results = await res3.json();
@@ -396,13 +437,11 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     COLOR EXTRACTION from album art
-     Returns dominant color as RGB string
+     COLOR EXTRACTION
   ═══════════════════════════════════════════════════════ */
   async extractColor(imageUrl) {
     if (!imageUrl) return null;
 
-    // Cache colors
     const cacheKey = "color_" + imageUrl;
     const cached = this._cache.get(cacheKey);
     if (cached) return cached.data;
@@ -425,14 +464,12 @@ const API = {
           const pixels = ctx.getImageData(0, 0, 50, 50).data;
           let r = 0, g = 0, b = 0, count = 0;
 
-          // Sample pixels
           for (let i = 0; i < pixels.length; i += 16) {
             const pr = pixels[i];
             const pg = pixels[i + 1];
             const pb = pixels[i + 2];
             const pa = pixels[i + 3];
             if (pa < 200) continue;
-            // Skip very dark/light pixels
             const brightness = (pr + pg + pb) / 3;
             if (brightness < 30 || brightness > 230) continue;
 
@@ -451,11 +488,9 @@ const API = {
           g = Math.round(g / count);
           b = Math.round(b / count);
 
-          // Boost saturation for premium look
           const max = Math.max(r, g, b);
           const min = Math.min(r, g, b);
           if (max - min < 30) {
-            // Too gray, boost
             const dominant = r >= g && r >= b ? 'r' : (g >= b ? 'g' : 'b');
             if (dominant === 'r') r = Math.min(255, r + 40);
             else if (dominant === 'g') g = Math.min(255, g + 40);

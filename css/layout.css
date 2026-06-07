@@ -1,18 +1,27 @@
-/* ✅ MOBILE SCROLL FIX */
+/* ============================================================
+   LAYOUT — App Shell, Sidebar, Topbar, Content, Mobile Nav
+============================================================ */
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE SCROLL FIX (PWA + Browser)
+═══════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
   html {
     height: auto !important;
-    overflow: auto !important;
     overflow-x: hidden !important;
+    overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+    overscroll-behavior-y: contain !important;
   }
 
   body {
     height: auto !important;
     min-height: 100vh !important;
-    overflow: auto !important;
     overflow-x: hidden !important;
+    overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
     position: static !important;
   }
 
@@ -21,29 +30,36 @@
     min-height: 100vh !important;
     overflow: visible !important;
     position: static !important;
+    touch-action: pan-y !important;
   }
 
   #main-content {
     overflow: visible !important;
     height: auto !important;
+    touch-action: pan-y !important;
   }
 
   #content-area {
     overflow: visible !important;
     height: auto !important;
-    padding-bottom: 240px !important;
+    touch-action: pan-y !important;
   }
 
-  /* Make sure fullscreen player doesn't block when closed */
+  /* Fullscreen player when closed - don't block */
   #fullscreen-player:not(.open) {
     pointer-events: none !important;
     visibility: hidden !important;
   }
-}
 
-/* ============================================================
-   LAYOUT — App Shell, Sidebar, Topbar, Content, Mobile Nav
-============================================================ */
+  /* PWA standalone fix */
+  @media (display-mode: standalone) {
+    html, body {
+      position: static !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-y !important;
+    }
+  }
+}
 
 #app {
   display: grid;
@@ -206,7 +222,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   MAIN CONTENT AREA
+   MAIN CONTENT
 ═══════════════════════════════════════════════════════ */
 #main-content {
   grid-row: 1;
@@ -217,7 +233,6 @@
   background: var(--bg-secondary);
 }
 
-/* Topbar */
 #topbar {
   height: var(--topbar-h);
   display: flex;
@@ -343,6 +358,9 @@
   font-size: 15px;
   transition: var(--t-fast);
   position: relative;
+  cursor: pointer;
+  background: none;
+  border: none;
 }
 
 .topbar-icon-btn:hover {
@@ -502,14 +520,9 @@
   position: relative;
 }
 
-/* Hide player bar when fullscreen player is open */
-body.fs-open #player-bar {
-  display: none !important;
-}
-
-body.fs-open #mobile-nav {
-  display: none !important;
-}
+/* Hide player bar + nav when fullscreen player open */
+body.fs-open #player-bar { display: none !important; }
+body.fs-open #mobile-nav { display: none !important; }
 
 /* ═══════════════════════════════════════════════════════
    MOBILE BOTTOM NAVIGATION
@@ -567,39 +580,25 @@ body.fs-open #mobile-nav {
   box-shadow: 0 0 12px rgba(29,185,84,0.6);
 }
 
+/* ✅ Hide bottom nav when landing screen is visible */
+body.landing-active #mobile-nav { display: none !important; }
+
 /* ═══════════════════════════════════════════════════════
-   RESPONSIVE — Tablets
+   RESPONSIVE
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {
-  #sidebar-right {
-    display: none;
-  }
-  #app {
-    grid-template-columns: var(--sidebar-w) 1fr;
-  }
-}
-
-@media (max-width: 900px) {
-  .topbar-right .topbar-icon-btn:not(:last-child) {
-    display: none;
-  }
+  #sidebar-right { display: none; }
+  #app { grid-template-columns: var(--sidebar-w) 1fr; }
 }
 
 /* ═══════════════════════════════════════════════════════
-   MOBILE LAYOUT (≤900px)
+   MOBILE LAYOUT
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  html, body {
-    height: auto !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
   #app {
     display: block !important;
     height: auto !important;
     min-height: 100vh;
-    overflow: visible !important;
   }
 
   #sidebar-left,
@@ -612,12 +611,11 @@ body.fs-open #mobile-nav {
     margin: 0 !important;
     padding: 0 !important;
     height: auto !important;
-    overflow: visible !important;
   }
 
   #topbar {
     padding: 10px 12px !important;
-    gap: 10px !important;
+    gap: 8px !important;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -632,17 +630,22 @@ body.fs-open #mobile-nav {
     flex: 1;
   }
 
-  /* ✅ CRITICAL FIX: Content padding to prevent mini player overlap */
+  /* ✅ Hide most topbar icons on mobile, show only 3-dot menu */
+  .topbar-right .topbar-icon-btn {
+    display: none !important;
+  }
+
+  /* Show only the 3-dot menu button (id="mobile-menu-btn") */
+  .topbar-right .topbar-icon-btn#mobile-menu-btn {
+    display: flex !important;
+  }
+
   #content-area {
     padding: 16px 12px 220px 12px !important;
     height: auto !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
   }
 
-  /* ═══════════════════════════════════════════════
-     MOBILE PLAYER BAR (Fixed, with new design)
-  ═══════════════════════════════════════════════ */
+  /* Mobile player bar */
   #player-bar {
     position: fixed !important;
     left: 8px;
@@ -688,7 +691,6 @@ body.fs-open #mobile-nav {
     margin-top: 2px !important;
   }
 
-  /* Show mobile nav buttons */
   .np-btn-mobile {
     display: flex !important;
   }
@@ -697,7 +699,6 @@ body.fs-open #mobile-nav {
     gap: 2px !important;
   }
 
-  /* Show bottom nav */
   #mobile-nav {
     display: flex !important;
   }
@@ -742,14 +743,16 @@ body.fs-open #mobile-nav {
   }
 }
 
-/* Desktop — hide mobile-only buttons */
 @media (min-width: 901px) {
   .np-btn-mobile {
     display: none !important;
   }
+  /* Hide mobile-only menu on desktop */
+  #mobile-menu-btn {
+    display: none !important;
+  }
 }
 
-/* Extra small */
 @media (max-width: 480px) {
   #content-area {
     padding: 12px 10px 220px 10px !important;
