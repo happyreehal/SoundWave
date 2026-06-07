@@ -1,13 +1,21 @@
 /* ============================================================
    API.JS — iTunes + Saavn + Audius + LRCLIB + Color extraction
-   + Country hint for Indian queries (better Punjabi/Hindi results)
+   + Country hint + Retry logic + URL cache for 30sec preview fix
 ============================================================ */
 const API = {
   ITUNES_BASE: "https://itunes.apple.com",
   LYRICS_BASE: "https://lrclib.net/api",
 
-  _cache:       new Map(),
-  _cacheExpiry: 5 * 60 * 1000,
+  _cache:        new Map(),
+  _cacheExpiry:  5 * 60 * 1000,
+
+  // ✅ URL cache (persistent, longer expiry — saves API calls)
+  _urlCache:     new Map(),
+  _urlCacheExpiry: 60 * 60 * 1000,  // 1 hour
+
+  // ✅ Throttle to avoid rate limits
+  _lastSaavnCall: 0,
+  _saavnDelay:    400,  // ms gap between Saavn calls
 
   SERVER:
     window.location.hostname === "happyreehal.github.io"
@@ -54,14 +62,41 @@ const API = {
       .trim();
   },
 
-  /* ✅ NEW: Detect if query is Indian-language related */
   _isIndianQuery(q) {
     if (!q) return false;
     return /\b(punjabi|hindi|bollywood|desi|indian|sufi|bhojpuri|tamil|telugu|kannada|marathi|gujarati|bengali|qawwali|ghazal|filmi)\b/i.test(q);
   },
 
+  // ✅ Throttle helper — wait if last Saavn call was too recent
+  async _throttleSaavn() {
+    const now = Date.now();
+    const elapsed = now - this._lastSaavnCall;
+    if (elapsed < this._saavnDelay) {
+      await new Promise(r => setTimeout(r, this._saavnDelay - elapsed));
+    }
+    this._lastSaavnCall = Date.now();
+  },
+
+  // ✅ URL cache helpers
+  _getCachedUrl(songId) {
+    const cached = this._urlCache.get(songId);
+    if (cached && Date.now() - cached.time < this._urlCacheExpiry) {
+      return cached.url;
+    }
+    return null;
+  },
+
+  _setCachedUrl(songId, url) {
+    this._urlCache.set(songId, { url, time: Date.now() });
+    // Keep cache size manageable
+    if (this._urlCache.size > 100) {
+      const oldest = [...this._urlCache.entries()].sort((a, b) => a[1].time - b[1].time)[0];
+      if (oldest) this._urlCache.delete(oldest[0]);
+    }
+  },
+
   /* ═══════════════════════════════════════════════════════
-     SEARCH — with country hint for Indian queries
+     SEARCH — with country hint
   ═══════════════════════════════════════════════════════ */
   async search(query, limit = 20) {
     if (!query || !query.trim()) return [];
@@ -84,7 +119,6 @@ const API = {
       for (const q of queries) {
         if (!q || allResults.length >= limit) break;
 
-        // ✅ Auto-detect: Indian query → country=in, else country=us
         const country = this._isIndianQuery(q) ? "in" : "us";
 
         const url = this.SERVER
@@ -136,7 +170,6 @@ const API = {
     }
 
     try {
-      // ✅ Country hint for suggestions too
       const country = this._isIndianQuery(query) ? "in" : "us";
 
       const url = this.SERVER
@@ -188,31 +221,62 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     GET PLAYABLE URL
+     GET PLAYABLE URL — with cache + retry
   ═══════════════════════════════════════════════════════ */
   async getPlayableUrl(song) {
     if (!song) return null;
-    console.log("🔍 Finding:", song.title, "-", song.artist);
 
-    if (this.SERVER) {
-      const url = await this.getSaavnFromServer(song);
-      if (url) { console.log("✅ JioSaavn match"); return url; }
+    // ✅ Check URL cache first
+    const cachedUrl = this._getCachedUrl(song.id);
+    if (cachedUrl) {
+      console.log("⚡ Cached URL hit:", song.title);
+      return cachedUrl;
     }
 
+    console.log("🔍 Finding:", song.title, "-", song.artist);
+
+    // ✅ Try Saavn with retry (3 attempts)
+    if (this.SERVER) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const url = await this.getSaavnFromServer(song, attempt);
+        if (url) {
+          console.log("✅ JioSaavn match (attempt " + attempt + ")");
+          this._setCachedUrl(song.id, url);
+          return url;
+        }
+        // Wait before retry (exponential backoff)
+        if (attempt < 3) {
+          const waitMs = 500 * attempt;
+          console.log("   Retrying Saavn in " + waitMs + "ms...");
+          await new Promise(r => setTimeout(r, waitMs));
+        }
+      }
+    }
+
+    // Audius fallback
     if (this.SERVER) {
       const url = await this.getAudiusFromServer(song);
-      if (url) { console.log("✅ Audius (server)"); return url; }
+      if (url) {
+        console.log("✅ Audius (server)");
+        this._setCachedUrl(song.id, url);
+        return url;
+      }
     }
 
     if (!this.SERVER) {
       const url = await this.getAudiusDirect(song);
-      if (url) { console.log("✅ Audius (direct)"); return url; }
+      if (url) {
+        console.log("✅ Audius (direct)");
+        this._setCachedUrl(song.id, url);
+        return url;
+      }
     }
 
+    // Last resort: iTunes 30sec preview
     if (song.previewUrl) {
-      console.log("⚠️ iTunes 30sec preview (full song not found)");
+      console.log("⚠️ iTunes 30sec preview (Saavn rate limited or song not on Saavn)");
       if (typeof UI !== "undefined") {
-        UI.showToast("30sec preview only", "fas fa-info-circle", "yellow");
+        UI.showToast("30sec preview — Saavn rate limited", "fas fa-info-circle", "yellow");
       }
       return song.previewUrl;
     }
@@ -221,12 +285,16 @@ const API = {
     return null;
   },
 
-  async getSaavnFromServer(song) {
+  /* ✅ Saavn with throttle + better error handling */
+  async getSaavnFromServer(song, attempt = 1) {
     try {
+      // Throttle: wait if last call was too recent
+      await this._throttleSaavn();
+
       const primaryArtist = this._getPrimaryArtist(song.artist || "");
       const cleanTitle    = this._cleanTitle(song.title || "");
 
-      console.log("   Saavn query:", cleanTitle, "—", primaryArtist, "| Album:", song.album || "?");
+      console.log("   Saavn try #" + attempt + ":", cleanTitle, "—", primaryArtist);
 
       const url =
         this.SERVER + "/api/saavn?" +
@@ -234,15 +302,34 @@ const API = {
         "&artist=" + encodeURIComponent(primaryArtist) +
         "&album=" + encodeURIComponent(song.album || "");
 
-      const data = await this._fetchJsonWithTimeout(url, 15000);
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+
+      // ✅ Handle rate limit specifically
+      if (res.status === 429) {
+        console.warn("   ⚠️ Saavn rate limited (429) — backing off");
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+        return null;
+      }
+
+      if (!res.ok) {
+        console.warn("   Saavn HTTP error:", res.status);
+        return null;
+      }
+
+      const data = await res.json();
 
       if (data && data.success && data.url) {
         console.log("   Saavn matched:", data.matched, "by", data.artist, "(score:" + data.score + ")");
         return data.url;
       }
+
+      // Log the reason for debugging
+      if (data && data.reason) {
+        console.log("   Saavn no match:", data.reason);
+      }
       return null;
     } catch (e) {
-      console.warn("Saavn error:", e.message);
+      console.warn("   Saavn error (attempt " + attempt + "):", e.message);
       return null;
     }
   },
@@ -298,7 +385,7 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     LYRICS — LRCLIB (3 strategies)
+     LYRICS — LRCLIB
   ═══════════════════════════════════════════════════════ */
   async getLyrics(song) {
     if (!song) return null;

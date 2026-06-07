@@ -1,6 +1,6 @@
 /* ============================================================
    PLAYER — Premium Mini Player + Fullscreen
-   Premium Vinyl Rotation + Pill Chips + Glow Effects
+   Layout: Single row controls + compact bottom + bigger art
 ============================================================ */
 
 /* ═══════════════════════════════════════════════════════
@@ -45,12 +45,10 @@
   flex-shrink: 0;
 }
 
-/* ✅ Hide mini player when no song is playing */
 body.no-song #player-bar {
   display: none !important;
 }
 
-/* ✅ Show mini player when song is loaded with smooth animation */
 body.has-song #player-bar {
   animation: miniPlayerAppear 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -254,7 +252,7 @@ body.has-song #player-bar {
 }
 
 /* ═══════════════════════════════════════════════════════
-   PROGRESS BAR (Mini player)
+   PROGRESS BAR
 ═══════════════════════════════════════════════════════ */
 .progress-row {
   display: flex;
@@ -433,7 +431,7 @@ body.has-song #player-bar {
 }
 
 /* ═══════════════════════════════════════════════════════
-   FULLSCREEN PLAYER — PREMIUM REDESIGN
+   FULLSCREEN PLAYER — PREMIUM (No empty space)
 ═══════════════════════════════════════════════════════ */
 #fullscreen-player {
   position: fixed;
@@ -458,7 +456,6 @@ body.has-song #player-bar {
   transition: none;
 }
 
-/* Layered backgrounds */
 .fs-bg {
   position: absolute;
   inset: 0;
@@ -504,8 +501,8 @@ body.has-song #player-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  padding-top: max(16px, env(safe-area-inset-top));
+  padding: 14px 20px;
+  padding-top: max(14px, env(safe-area-inset-top));
   flex-shrink: 0;
   z-index: 3;
 }
@@ -532,7 +529,6 @@ body.has-song #player-bar {
 .fs-top-menu:hover {
   background: rgba(255,255,255,0.18);
   transform: scale(1.08);
-  border-color: rgba(255,255,255,0.2);
 }
 
 .fs-close:active,
@@ -548,29 +544,28 @@ body.has-song #player-bar {
   letter-spacing: 2px;
 }
 
-/* Main content */
+/* ✅ FIXED Main content — distribute evenly, no empty space */
 .fs-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 16px 24px 30px;
-  padding-bottom: max(30px, env(safe-area-inset-bottom));
+  justify-content: space-evenly;
+  padding: 8px 24px 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
   max-width: 500px;
   width: 100%;
   margin: 0 auto;
   z-index: 3;
-  gap: 16px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   min-height: 0;
 }
 
-/* ✨ Album art with vinyl rotation */
+/* ✅ Album art — BIGGER (fills space better) */
 .fs-art {
-  width: min(72vw, 340px);
-  height: min(72vw, 340px);
+  width: min(82vw, 380px);
+  height: min(82vw, 380px);
   border-radius: 24px;
   overflow: hidden;
   box-shadow:
@@ -598,7 +593,6 @@ body.has-song #player-bar {
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
-/* ✨ Vinyl rotation when playing */
 .fs-art.spinning {
   animation: vinylSpin 20s linear infinite;
 }
@@ -608,7 +602,6 @@ body.has-song #player-bar {
   to   { transform: rotate(360deg); }
 }
 
-/* ✨ Glow ring effect around album art when playing */
 .fs-art.spinning::before {
   content: '';
   position: absolute;
@@ -635,15 +628,14 @@ body.has-song #player-bar {
 .fs-meta {
   text-align: center;
   width: 100%;
-  margin: 12px 0 0;
   flex-shrink: 0;
 }
 
 .fs-title {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 900;
-  letter-spacing: -0.8px;
-  margin-bottom: 8px;
+  letter-spacing: -0.6px;
+  margin-bottom: 6px;
   color: #fff;
   line-height: 1.2;
   white-space: nowrap;
@@ -654,7 +646,7 @@ body.has-song #player-bar {
 }
 
 .fs-artist {
-  font-size: 15px;
+  font-size: 14px;
   color: rgba(255,255,255,0.75);
   font-weight: 600;
   white-space: nowrap;
@@ -663,16 +655,16 @@ body.has-song #player-bar {
   letter-spacing: 0.3px;
   cursor: pointer;
   transition: color 0.2s;
+  padding: 0 8px;
 }
 
 .fs-artist:hover {
   color: #fff;
 }
 
-/* Progress section */
+/* Progress */
 .fs-progress-section {
   width: 100%;
-  margin: 4px 0;
   flex-shrink: 0;
 }
 
@@ -693,7 +685,7 @@ body.has-song #player-bar {
 .fs-time-row {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .fs-time-row .time-lbl {
@@ -702,35 +694,37 @@ body.has-song #player-bar {
   font-weight: 600;
 }
 
-/* Main controls — bigger, more premium */
+/* ✅ SINGLE ROW Controls (6 buttons: shuffle, prev, play, next, like, repeat) */
 .fs-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin: 8px 0;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
   flex-shrink: 0;
+  padding: 0 8px;
 }
 
 .fs-ctrl-btn {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  color: rgba(255,255,255,0.9);
+  font-size: 20px;
+  color: rgba(255,255,255,0.85);
   background: none;
   border: none;
   cursor: pointer;
   transition: all 0.2s var(--ease-out);
   position: relative;
+  flex-shrink: 0;
 }
 
 .fs-ctrl-btn:hover {
   background: rgba(255,255,255,0.1);
-  transform: scale(1.1);
+  transform: scale(1.08);
   color: #fff;
 }
 
@@ -753,19 +747,37 @@ body.has-song #player-bar {
   box-shadow: 0 0 8px var(--accent);
 }
 
-/* ✨ Premium play button with glow */
+/* Like button — same size as other ctrl btns when in main row */
+.fs-ctrl-btn.like-btn {
+  color: rgba(255,255,255,0.85);
+}
+
+.fs-ctrl-btn.like-btn.liked {
+  color: var(--accent);
+  animation: heartBeat 0.5s ease;
+}
+
+@keyframes heartBeat {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.3); }
+  60%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* Premium play button */
 .fs-play-btn {
-  width: 76px !important;
-  height: 76px !important;
+  width: 72px !important;
+  height: 72px !important;
   background: #fff !important;
   color: #000 !important;
-  font-size: 26px !important;
-  margin: 0 10px !important;
+  font-size: 24px !important;
+  margin: 0 !important;
   box-shadow:
     0 10px 40px rgba(255,255,255,0.25),
     0 0 0 0 rgba(29,185,84,0.4) !important;
   position: relative;
   transition: all 0.3s var(--ease-out) !important;
+  flex-shrink: 0;
 }
 
 .fs-play-btn:hover {
@@ -779,7 +791,6 @@ body.has-song #player-bar {
   transform: scale(0.96) !important;
 }
 
-/* Pulsing ring when playing */
 .fs-play-btn.playing::before {
   content: '';
   position: absolute;
@@ -795,26 +806,25 @@ body.has-song #player-bar {
   100% { transform: scale(1.2);  opacity: 0; }
 }
 
-/* ✨ Bottom actions — PILL CHIPS style */
+/* ✅ Bottom row — 4 buttons (Lyrics, Queue, Add, EQ) */
 .fs-bottom-actions {
   display: flex !important;
   align-items: center;
   justify-content: space-around;
   width: 100%;
-  margin-top: 10px;
   padding: 0 4px;
   flex-shrink: 0;
   gap: 6px;
 }
 
 .fs-action-btn {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   display: flex !important;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 17px;
   color: rgba(255,255,255,0.75);
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.08);
@@ -834,15 +844,6 @@ body.has-song #player-bar {
 
 .fs-action-btn:active {
   transform: translateY(0) scale(0.94);
-}
-
-/* ✨ Liked state — green pill with glow */
-.fs-action-btn.liked,
-.fs-action-btn.like-btn.liked {
-  color: var(--accent);
-  background: rgba(29,185,84,0.15);
-  border-color: rgba(29,185,84,0.4);
-  box-shadow: 0 0 16px rgba(29,185,84,0.25);
 }
 
 .fs-action-btn.active {
@@ -946,34 +947,33 @@ body.has-song #player-bar {
 }
 
 /* ═══════════════════════════════════════════════════════
-   DESKTOP — Fullscreen
+   DESKTOP
 ═══════════════════════════════════════════════════════ */
 @media (min-width: 901px) {
   .fs-content {
-    max-width: 480px;
+    max-width: 500px;
     justify-content: center;
-    gap: 20px;
+    gap: 18px;
   }
 
   .fs-art {
-    width: 340px;
-    height: 340px;
+    width: 360px;
+    height: 360px;
   }
 }
 
 /* ═══════════════════════════════════════════════════════
-   MOBILE FULLSCREEN
+   MOBILE
 ═══════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .fs-content {
-    padding: 8px 18px 20px;
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
-    gap: 12px;
+    padding: 4px 18px 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 
   .fs-art {
-    width: min(68vw, 300px);
-    height: min(68vw, 300px);
+    width: min(78vw, 340px);
+    height: min(78vw, 340px);
     border-radius: 22px;
   }
 
@@ -982,24 +982,24 @@ body.has-song #player-bar {
   }
 
   .fs-artist {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .fs-play-btn {
-    width: 68px !important;
-    height: 68px !important;
-    font-size: 24px !important;
+    width: 66px !important;
+    height: 66px !important;
+    font-size: 22px !important;
   }
 
   .fs-ctrl-btn {
-    width: 48px;
-    height: 48px;
-    font-size: 20px;
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
   }
 
   .fs-controls {
-    gap: 10px;
-    margin: 4px 0;
+    gap: 2px;
+    padding: 0 4px;
   }
 
   .fs-action-btn {
@@ -1010,16 +1010,7 @@ body.has-song #player-bar {
 
   .fs-bottom-actions {
     padding: 0;
-    margin-top: 6px;
     gap: 4px;
-  }
-
-  .fs-meta {
-    margin: 6px 0 0;
-  }
-
-  .fs-progress-section {
-    margin: 2px 0;
   }
 
   .fs-lyrics-lines .lyric-line {
@@ -1034,8 +1025,8 @@ body.has-song #player-bar {
 /* Very small screens */
 @media (max-width: 360px) {
   .fs-art {
-    width: min(62vw, 260px);
-    height: min(62vw, 260px);
+    width: min(74vw, 300px);
+    height: min(74vw, 300px);
   }
 
   .fs-title {
@@ -1043,13 +1034,13 @@ body.has-song #player-bar {
   }
 
   .fs-controls {
-    gap: 6px;
+    gap: 0;
   }
 
   .fs-ctrl-btn {
-    width: 44px;
-    height: 44px;
-    font-size: 18px;
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
   }
 
   .fs-action-btn {
@@ -1059,9 +1050,9 @@ body.has-song #player-bar {
   }
 
   .fs-play-btn {
-    width: 62px !important;
-    height: 62px !important;
-    font-size: 22px !important;
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 21px !important;
   }
 }
 
