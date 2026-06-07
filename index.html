@@ -402,7 +402,53 @@
     <div id="stats-content"></div>
   </div>
 </div>
+<!-- Theme Selector Modal -->
+<div class="modal-overlay" id="modal-theme">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 class="modal-title">🎨 Theme</h3>
+      <button class="modal-close" onclick="closeModal('modal-theme')"><i class="fas fa-times"></i></button>
+    </div>
 
+    <!-- Appearance Section -->
+    <div class="theme-section">
+      <div class="theme-section-title">Appearance</div>
+      <div class="appearance-toggle">
+        <div class="appearance-option" data-theme="dark" onclick="ThemeManager.setTheme('dark')">
+          <div class="appearance-preview dark">🌙</div>
+          <div class="appearance-name">Dark</div>
+        </div>
+        <div class="appearance-option" data-theme="light" onclick="ThemeManager.setTheme('light')">
+          <div class="appearance-preview light">☀️</div>
+          <div class="appearance-name">Light</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accent Color Section -->
+    <div class="theme-section">
+      <div class="theme-section-title">Accent Color</div>
+      <div class="color-swatches">
+        <div class="color-swatch" data-color="green" onclick="ThemeManager.setAccent('green')">
+          <div class="color-swatch-circle"><i class="fas fa-check"></i></div>
+          <div class="color-swatch-name">Green</div>
+        </div>
+        <div class="color-swatch" data-color="purple" onclick="ThemeManager.setAccent('purple')">
+          <div class="color-swatch-circle"><i class="fas fa-check"></i></div>
+          <div class="color-swatch-name">Purple</div>
+        </div>
+        <div class="color-swatch" data-color="orange" onclick="ThemeManager.setAccent('orange')">
+          <div class="color-swatch-circle"><i class="fas fa-check"></i></div>
+          <div class="color-swatch-name">Orange</div>
+        </div>
+        <div class="color-swatch" data-color="pink" onclick="ThemeManager.setAccent('pink')">
+          <div class="color-swatch-circle"><i class="fas fa-check"></i></div>
+          <div class="color-swatch-name">Pink</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Keyboard Shortcuts -->
 <div class="modal-overlay" id="modal-shortcuts">
   <div class="modal">
@@ -472,9 +518,12 @@
         <div id="search-suggestions" class="search-suggestions hidden"></div>
       </div>
       <div class="topbar-right">
-        <button class="topbar-icon-btn" id="mobile-menu-btn" onclick="MobileMenu.open()" data-tip="Menu">
-  <i class="fas fa-ellipsis-v"></i>
-</button>
+                <button class="topbar-icon-btn" id="mobile-menu-btn" onclick="MobileMenu.open()" data-tip="Menu">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+        <button class="topbar-icon-btn" onclick="openModal('modal-theme')" data-tip="Theme">
+          <i class="fas fa-palette"></i>
+        </button>
         <button class="topbar-icon-btn" onclick="openModal('modal-stats')" data-tip="Stats">
           <i class="fas fa-chart-line"></i>
         </button>

@@ -20,6 +20,7 @@ function openModal(id) {
 
   if (id === "modal-eq") EQ.render();
   if (id === "modal-stats") UI.renderStats();
+  if (id === "modal-theme") ThemeManager.updateUI();
 
   setTimeout(() => {
     const input = el.querySelector("input[type='text']");
@@ -607,6 +608,7 @@ window.addEventListener("appinstalled", () => {
 ═══════════════════════════════════════════════════════ */
 const App = {
   async init() {
+    ThemeManager.init();  // ✅ Initialize theme FIRST
     Player.init();
     this.bindNav();
     this.bindTopbar();

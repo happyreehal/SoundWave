@@ -1228,6 +1228,9 @@ const MobileMenu = {
           '<div style="font-size:16px;font-weight:800;">Menu</div>' +
         '</div>' +
         '<div class="bottom-sheet-actions">' +
+          '<div class="sheet-action" onclick="MobileMenu.close(); openModal(\'modal-theme\');">' +
+            '<i class="fas fa-palette"></i><span>Theme</span>' +
+          '</div>' +
           '<div class="sheet-action" onclick="MobileMenu.close(); openModal(\'modal-stats\');">' +
             '<i class="fas fa-chart-line"></i><span>Your Stats</span>' +
           '</div>' +
@@ -1266,5 +1269,99 @@ const MobileMenu = {
     const sheet = document.getElementById("mobile-menu-sheet");
     if (sheet) sheet.classList.add("hidden");
     if (this._backdrop) this._backdrop.style.display = "none";
+  },
+};
+
+/* ═══════════════════════════════════════════════════════
+   THEME MANAGER — Dark/Light + Accent Colors
+═══════════════════════════════════════════════════════ */
+const ThemeManager = {
+
+  /* Initialize on app load */
+  init() {
+    // Load saved preferences
+    let theme = State.theme;
+    let accent = State.accentColor || "green";
+
+    // ✅ If no theme set, use system preference
+    if (!theme) {
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      theme = systemDark ? "dark" : "light";
+    }
+
+    this.applyTheme(theme);
+    this.applyAccent(accent);
+    this.updateUI();
+
+    // Listen for system theme changes (if user hasn't manually set one)
+    if (window.matchMedia) {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      mq.addEventListener("change", (e) => {
+        // Only auto-update if user hasn't explicitly chosen
+        if (!State.theme) {
+          this.applyTheme(e.matches ? "dark" : "light");
+        }
+      });
+    }
+  },
+
+  /* Set theme (dark/light) */
+  setTheme(theme) {
+    State.theme = theme;
+    this.applyTheme(theme);
+    this.updateUI();
+    State.save();
+    Player.haptic(10);
+    UI.showToast(
+      theme === "dark" ? "Dark mode 🌙" : "Light mode ☀️",
+      "fas fa-palette",
+      "green"
+    );
+  },
+
+  /* Apply theme to DOM */
+  applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+
+    // Update meta theme-color for mobile browser chrome
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute("content", theme === "dark" ? "#0a0a0a" : "#fafafa");
+    }
+  },
+
+  /* Set accent color */
+  setAccent(color) {
+    State.accentColor = color;
+    this.applyAccent(color);
+    this.updateUI();
+    State.save();
+    Player.haptic(10);
+    UI.showToast(
+      "Accent: " + color.charAt(0).toUpperCase() + color.slice(1) + " 🎨",
+      "fas fa-palette",
+      "green"
+    );
+  },
+
+  /* Apply accent to DOM */
+  applyAccent(color) {
+    document.documentElement.setAttribute("data-accent", color);
+  },
+
+  /* Update UI active states in theme modal */
+  updateUI() {
+    const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
+    const currentAccent = document.documentElement.getAttribute("data-accent") || "green";
+
+    // Update appearance options
+    document.querySelectorAll(".appearance-option").forEach(opt => {
+      opt.classList.toggle("active", opt.dataset.theme === currentTheme);
+    });
+
+    // Update color swatches
+    document.querySelectorAll(".color-swatch").forEach(sw => {
+      sw.classList.toggle("active", sw.dataset.color === currentAccent);
+    });
   },
 };
