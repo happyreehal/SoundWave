@@ -1540,3 +1540,59 @@ button:active {
   opacity: 1;
   color: var(--text-primary);
 }
+/* ═══════════════════════════════════════════════════════
+   PREVIEW ONLY BADGE
+═══════════════════════════════════════════════════════ */
+.preview-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(245, 158, 11, 0.95);
+  color: #000;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  z-index: 4;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.preview-badge i {
+  font-size: 8px;
+}
+
+/* Card thumb me preview badge ke liye position */
+.card-thumb {
+  position: relative;
+}
+
+/* Active song me preview indicator (mini player + fullscreen) */
+.np-preview-indicator,
+.fs-preview-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.fs-preview-indicator {
+  font-size: 11px;
+  padding: 4px 12px;
+  margin-top: 8px;
+  margin-left: 0;
+}

@@ -1,7 +1,7 @@
 /* ============================================================
    UI.JS — Rendering, Navigation, Display Logic
-   + Mini player auto-hide (body class)
-   + Vinyl spin trigger when playing
+   + Mini player auto-hide + Vinyl spin
+   + Preview Only badges for unavailable full songs
 ============================================================ */
 
 window.__songRegistry = window.__songRegistry || {};
@@ -92,12 +92,12 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     NOW PLAYING + Color adaptive + Vinyl spin
+     NOW PLAYING + Color adaptive + Vinyl spin + Preview badge
   ═══════════════════════════════════════════════════════ */
   async updateNowPlaying(song) {
     if (!song) return;
 
-    // ✅ Show mini player (body class)
+    // Show mini player (body class)
     document.body.classList.remove("no-song");
     document.body.classList.add("has-song");
 
@@ -144,7 +144,22 @@ const UI = {
       if (existingStar) existingStar.remove();
     }
 
-    if (titleEl)  titleEl.textContent  = song.title;
+    if (titleEl) titleEl.textContent = song.title;
+
+    // ✅ Preview only indicator (mini player title)
+    if (titleEl && song._previewOnly) {
+      const existing = titleEl.querySelector('.np-preview-indicator');
+      if (!existing) {
+        const badge = document.createElement('span');
+        badge.className = 'np-preview-indicator';
+        badge.innerHTML = '<i class="fas fa-info-circle"></i> 30s';
+        titleEl.appendChild(badge);
+      }
+    } else if (titleEl) {
+      const existing = titleEl.querySelector('.np-preview-indicator');
+      if (existing) existing.remove();
+    }
+
     if (artistEl) {
       artistEl.textContent = song.artist;
       artistEl.style.cursor = "pointer";
@@ -173,6 +188,21 @@ const UI = {
     const fsBg     = document.querySelector(".fs-blur-art");
 
     if (fsTitle) fsTitle.textContent = song.title;
+
+    // ✅ Preview only indicator (fullscreen)
+    if (fsTitle && song._previewOnly) {
+      const existing = fsTitle.querySelector('.fs-preview-indicator');
+      if (!existing) {
+        const badge = document.createElement('div');
+        badge.className = 'fs-preview-indicator';
+        badge.innerHTML = '<i class="fas fa-info-circle"></i> Preview Only · 30s';
+        fsTitle.appendChild(badge);
+      }
+    } else if (fsTitle) {
+      const existing = fsTitle.querySelector('.fs-preview-indicator');
+      if (existing) existing.remove();
+    }
+
     if (fsArtist) {
       fsArtist.textContent = song.artist;
       fsArtist.style.cursor = "pointer";
@@ -221,7 +251,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     PLAY STATE + Vinyl spin trigger
+     PLAY STATE + Vinyl spin
   ═══════════════════════════════════════════════════════ */
   setPlayState(playing) {
     document.querySelectorAll(".play-btn").forEach(btn => {
@@ -231,7 +261,7 @@ const UI = {
     const viz = document.querySelector(".mini-visualizer");
     if (viz) viz.style.display = playing ? "flex" : "none";
 
-    // ✅ Vinyl spin toggle on fullscreen art
+    // Vinyl spin toggle on fullscreen art
     const fsArt = document.querySelector(".fs-art");
     if (fsArt) {
       fsArt.classList.toggle("spinning", playing);
@@ -286,7 +316,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     RENDER CARD
+     RENDER CARD (with preview badge)
   ═══════════════════════════════════════════════════════ */
   renderCard(song, index, songs) {
     if (songs) songs.forEach(s => UI._registerSong(s));
@@ -304,6 +334,7 @@ const UI = {
           : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
         (song.explicit ? '<div class="card-badge">E</div>' : "") +
         (State.liked.has(song.id) ? '<div class="liked-star"><i class="fas fa-heart"></i></div>' : "") +
+        (song._previewOnly ? '<div class="preview-badge"><i class="fas fa-info-circle"></i>30s</div>' : "") +
         '</div>' +
         '<div class="card-title">' + this.escHtml(song.title) + '</div>' +
         '<div class="card-sub" onclick="event.stopPropagation(); ArtistPage.open(\'' + this.escHtml(song.artist).replace(/'/g, "\\'") + '\')" style="cursor:pointer;" title="View artist">' + this.escHtml(song.artist) + "</div>" +
@@ -965,4 +996,5 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!State.currentSong) {
     document.body.classList.add("no-song");
   }
-});
+  }
+);

@@ -1,6 +1,6 @@
 /* ============================================================
    API.JS — iTunes + Saavn + Audius + LRCLIB + Color extraction
-   + Country hint + Retry logic + URL cache for 30sec preview fix
+   + Fast loading: 5sec Saavn budget + URL cache + instant fallback
 ============================================================ */
 const API = {
   ITUNES_BASE: "https://itunes.apple.com",
@@ -9,13 +9,17 @@ const API = {
   _cache:        new Map(),
   _cacheExpiry:  5 * 60 * 1000,
 
-  // ✅ URL cache (persistent, longer expiry — saves API calls)
+  // ✅ URL cache (1 hour) — same song instant play
   _urlCache:     new Map(),
-  _urlCacheExpiry: 60 * 60 * 1000,  // 1 hour
+  _urlCacheExpiry: 60 * 60 * 1000,
 
-  // ✅ Throttle to avoid rate limits
+  // ✅ Negative cache (5 min) — songs that failed, don't retry immediately
+  _failCache:    new Map(),
+  _failCacheExpiry: 5 * 60 * 1000,
+
+  // Throttle
   _lastSaavnCall: 0,
-  _saavnDelay:    400,  // ms gap between Saavn calls
+  _saavnDelay:    300,
 
   SERVER:
     window.location.hostname === "happyreehal.github.io"
@@ -35,7 +39,7 @@ const API = {
   /* ═══════════════════════════════════════════════════════
      Helpers
   ═══════════════════════════════════════════════════════ */
-  _fetchJsonWithTimeout(url, ms = 12000) {
+  _fetchJsonWithTimeout(url, ms = 8000) {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), ms);
     return fetch(url, { signal: controller.signal })
@@ -67,7 +71,6 @@ const API = {
     return /\b(punjabi|hindi|bollywood|desi|indian|sufi|bhojpuri|tamil|telugu|kannada|marathi|gujarati|bengali|qawwali|ghazal|filmi)\b/i.test(q);
   },
 
-  // ✅ Throttle helper — wait if last Saavn call was too recent
   async _throttleSaavn() {
     const now = Date.now();
     const elapsed = now - this._lastSaavnCall;
@@ -77,7 +80,9 @@ const API = {
     this._lastSaavnCall = Date.now();
   },
 
-  // ✅ URL cache helpers
+  /* ═══════════════════════════════════════════════════════
+     CACHE HELPERS
+  ═══════════════════════════════════════════════════════ */
   _getCachedUrl(songId) {
     const cached = this._urlCache.get(songId);
     if (cached && Date.now() - cached.time < this._urlCacheExpiry) {
@@ -88,15 +93,26 @@ const API = {
 
   _setCachedUrl(songId, url) {
     this._urlCache.set(songId, { url, time: Date.now() });
-    // Keep cache size manageable
     if (this._urlCache.size > 100) {
       const oldest = [...this._urlCache.entries()].sort((a, b) => a[1].time - b[1].time)[0];
       if (oldest) this._urlCache.delete(oldest[0]);
     }
   },
 
+  _isFailCached(songId) {
+    const failed = this._failCache.get(songId);
+    if (failed && Date.now() - failed < this._failCacheExpiry) {
+      return true;
+    }
+    return false;
+  },
+
+  _markFailed(songId) {
+    this._failCache.set(songId, Date.now());
+  },
+
   /* ═══════════════════════════════════════════════════════
-     SEARCH — with country hint
+     SEARCH
   ═══════════════════════════════════════════════════════ */
   async search(query, limit = 20) {
     if (!query || !query.trim()) return [];
@@ -221,39 +237,40 @@ const API = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     GET PLAYABLE URL — with cache + retry
+     GET PLAYABLE URL — Fast with cache
   ═══════════════════════════════════════════════════════ */
   async getPlayableUrl(song) {
     if (!song) return null;
 
-    // ✅ Check URL cache first
+    // ✅ Check URL cache first (instant play)
     const cachedUrl = this._getCachedUrl(song.id);
     if (cachedUrl) {
-      console.log("⚡ Cached URL hit:", song.title);
+      console.log("⚡ Cached URL:", song.title);
       return cachedUrl;
     }
 
     console.log("🔍 Finding:", song.title, "-", song.artist);
 
-    // ✅ Try Saavn with retry (3 attempts)
-    if (this.SERVER) {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const url = await this.getSaavnFromServer(song, attempt);
-        if (url) {
-          console.log("✅ JioSaavn match (attempt " + attempt + ")");
-          this._setCachedUrl(song.id, url);
-          return url;
-        }
-        // Wait before retry (exponential backoff)
-        if (attempt < 3) {
-          const waitMs = 500 * attempt;
-          console.log("   Retrying Saavn in " + waitMs + "ms...");
-          await new Promise(r => setTimeout(r, waitMs));
-        }
+    // ✅ Skip Saavn if we know it failed recently (within 5 min)
+    const knownFailed = this._isFailCached(song.id);
+    if (knownFailed) {
+      console.log("   ⏭️ Skipping Saavn (recently failed)");
+    }
+
+    // ✅ Try Saavn (only 1 attempt — backend handles its own retries)
+    if (this.SERVER && !knownFailed) {
+      const url = await this.getSaavnFromServer(song);
+      if (url) {
+        console.log("✅ JioSaavn match");
+        this._setCachedUrl(song.id, url);
+        return url;
+      } else {
+        // Mark as failed so we don't retry for 5 min
+        this._markFailed(song.id);
       }
     }
 
-    // Audius fallback
+    // ✅ Try Audius (fast fallback)
     if (this.SERVER) {
       const url = await this.getAudiusFromServer(song);
       if (url) {
@@ -272,12 +289,14 @@ const API = {
       }
     }
 
-    // Last resort: iTunes 30sec preview
+    // ✅ Last resort: iTunes 30sec preview
     if (song.previewUrl) {
-      console.log("⚠️ iTunes 30sec preview (Saavn rate limited or song not on Saavn)");
+      console.log("⚠️ 30sec preview (full song not available)");
       if (typeof UI !== "undefined") {
-        UI.showToast("30sec preview — Saavn rate limited", "fas fa-info-circle", "yellow");
+        UI.showToast("Preview only — Full song not available", "fas fa-info-circle", "yellow");
       }
+      // Mark song as preview-only for badge display
+      song._previewOnly = true;
       return song.previewUrl;
     }
 
@@ -285,16 +304,15 @@ const API = {
     return null;
   },
 
-  /* ✅ Saavn with throttle + better error handling */
-  async getSaavnFromServer(song, attempt = 1) {
+  /* ✅ Saavn — single attempt (backend has its own retry logic) */
+  async getSaavnFromServer(song) {
     try {
-      // Throttle: wait if last call was too recent
       await this._throttleSaavn();
 
       const primaryArtist = this._getPrimaryArtist(song.artist || "");
       const cleanTitle    = this._cleanTitle(song.title || "");
 
-      console.log("   Saavn try #" + attempt + ":", cleanTitle, "—", primaryArtist);
+      console.log("   Saavn:", cleanTitle, "—", primaryArtist);
 
       const url =
         this.SERVER + "/api/saavn?" +
@@ -302,14 +320,8 @@ const API = {
         "&artist=" + encodeURIComponent(primaryArtist) +
         "&album=" + encodeURIComponent(song.album || "");
 
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-
-      // ✅ Handle rate limit specifically
-      if (res.status === 429) {
-        console.warn("   ⚠️ Saavn rate limited (429) — backing off");
-        await new Promise(r => setTimeout(r, 1000 * attempt));
-        return null;
-      }
+      // ✅ 9 sec timeout (backend has 6 sec budget + buffer)
+      const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
 
       if (!res.ok) {
         console.warn("   Saavn HTTP error:", res.status);
@@ -319,17 +331,16 @@ const API = {
       const data = await res.json();
 
       if (data && data.success && data.url) {
-        console.log("   Saavn matched:", data.matched, "by", data.artist, "(score:" + data.score + ")");
+        console.log("   Saavn matched:", data.matched, "(score:" + data.score + ")");
         return data.url;
       }
 
-      // Log the reason for debugging
       if (data && data.reason) {
-        console.log("   Saavn no match:", data.reason);
+        console.log("   Saavn:", data.reason);
       }
       return null;
     } catch (e) {
-      console.warn("   Saavn error (attempt " + attempt + "):", e.message);
+      console.warn("   Saavn error:", e.message);
       return null;
     }
   },
@@ -343,7 +354,7 @@ const API = {
         this.SERVER + "/api/audius?title=" + encodeURIComponent(cleanTitle) +
         "&artist=" + encodeURIComponent(primaryArtist);
 
-      const data = await this._fetchJsonWithTimeout(url, 12000);
+      const data = await this._fetchJsonWithTimeout(url, 8000);
 
       if (data && data.success && data.url) {
         return data.url;
@@ -398,7 +409,7 @@ const API = {
         "track_name="   + encodeURIComponent(cleanTitle) +
         "&artist_name=" + encodeURIComponent(primaryArtist) +
         "&album_name="  + encodeURIComponent(song.album || "");
-      const res1 = await fetch(url1, { signal: AbortSignal.timeout(15000) });
+      const res1 = await fetch(url1, { signal: AbortSignal.timeout(12000) });
       if (res1.ok) {
         const data = await res1.json();
         if (data.syncedLyrics) return this.parseSyncedLyrics(data.syncedLyrics);
@@ -408,7 +419,7 @@ const API = {
       const url2 = this.LYRICS_BASE + "/get?" +
         "track_name="   + encodeURIComponent(cleanTitle) +
         "&artist_name=" + encodeURIComponent(primaryArtist);
-      const res2 = await fetch(url2, { signal: AbortSignal.timeout(15000) });
+      const res2 = await fetch(url2, { signal: AbortSignal.timeout(12000) });
       if (res2.ok) {
         const data = await res2.json();
         if (data.syncedLyrics) return this.parseSyncedLyrics(data.syncedLyrics);
@@ -418,13 +429,13 @@ const API = {
       const url3 = this.LYRICS_BASE + "/search?" +
         "track_name="   + encodeURIComponent(cleanTitle) +
         "&artist_name=" + encodeURIComponent(primaryArtist);
-      const res3 = await fetch(url3, { signal: AbortSignal.timeout(15000) });
+      const res3 = await fetch(url3, { signal: AbortSignal.timeout(12000) });
       if (res3.ok) {
         const results = await res3.json();
         if (results && results.length > 0) {
           const detail = await fetch(
             this.LYRICS_BASE + "/get/" + results[0].id,
-            { signal: AbortSignal.timeout(15000) }
+            { signal: AbortSignal.timeout(12000) }
           );
           if (detail.ok) {
             const data = await detail.json();
