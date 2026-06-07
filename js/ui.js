@@ -1,6 +1,7 @@
 /* ============================================================
    UI.JS — Rendering, Navigation, Display Logic
-   + Mini player auto-hide, Color-adaptive, Stats
+   + Mini player auto-hide (body class)
+   + Vinyl spin trigger when playing
 ============================================================ */
 
 window.__songRegistry = window.__songRegistry || {};
@@ -58,7 +59,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     NAVIGATION — Mobile fix (close fullscreen + keep audio)
+     NAVIGATION
   ═══════════════════════════════════════════════════════ */
   navigate(page) {
     this.closeFullscreen();
@@ -91,15 +92,20 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     NOW PLAYING + Color adaptive
+     NOW PLAYING + Color adaptive + Vinyl spin
   ═══════════════════════════════════════════════════════ */
   async updateNowPlaying(song) {
+    if (!song) return;
+
+    // ✅ Show mini player (body class)
+    document.body.classList.remove("no-song");
+    document.body.classList.add("has-song");
+
     const artEl    = document.querySelector(".now-playing-art");
     const titleEl  = document.querySelector(".np-title");
     const artistEl = document.querySelector(".np-artist");
 
-    if (artEl) 
-   {
+    if (artEl) {
       if (song.artwork) {
         artEl.innerHTML =
           '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
@@ -108,7 +114,8 @@ const UI = {
         artEl.innerHTML = '<div class="art-placeholder">🎵</div>';
       }
     }
-        // ✅ Add liked star to now playing art
+
+    // Add liked star to now playing art
     if (artEl && State.liked.has(song.id)) {
       const existingStar = artEl.querySelector('.liked-star');
       if (!existingStar) {
@@ -137,16 +144,16 @@ const UI = {
       if (existingStar) existingStar.remove();
     }
 
-
     if (titleEl)  titleEl.textContent  = song.title;
     if (artistEl) {
-  artistEl.textContent = song.artist;
-  artistEl.style.cursor = "pointer";
-  artistEl.onclick = (e) => {
-    e.stopPropagation();
-    ArtistPage.open(song.artist);
-  };
-}
+      artistEl.textContent = song.artist;
+      artistEl.style.cursor = "pointer";
+      artistEl.onclick = (e) => {
+        e.stopPropagation();
+        ArtistPage.open(song.artist);
+      };
+    }
+
     if (song.duration) this.updateDuration(song.duration);
 
     const fill = document.querySelector(".progress-fill");
@@ -154,7 +161,6 @@ const UI = {
     const curEl = document.querySelector(".time-lbl.current");
     if (curEl) curEl.textContent = "0:00";
 
-    // Mini progress reset
     const miniFill = document.querySelector(".mini-progress-fill");
     if (miniFill) miniFill.style.width = "0%";
 
@@ -166,15 +172,16 @@ const UI = {
     const fsArt    = document.querySelector(".fs-art");
     const fsBg     = document.querySelector(".fs-blur-art");
 
-    if (fsTitle)  fsTitle.textContent  = song.title;
+    if (fsTitle) fsTitle.textContent = song.title;
     if (fsArtist) {
-  fsArtist.textContent = song.artist;
-  fsArtist.style.cursor = "pointer";
-  fsArtist.onclick = () => {
-    UI.closeFullscreen();
-    ArtistPage.open(song.artist);
-  };
-}
+      fsArtist.textContent = song.artist;
+      fsArtist.style.cursor = "pointer";
+      fsArtist.onclick = () => {
+        UI.closeFullscreen();
+        ArtistPage.open(song.artist);
+      };
+    }
+
     if (fsArt && song.artwork) {
       fsArt.innerHTML =
         '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
@@ -184,19 +191,18 @@ const UI = {
 
     document.title = song.title + " — SoundWave Pro";
 
-    // ✅ Color-adaptive background
+    // Color-adaptive background
     if (song.artwork) {
       this.applyAdaptiveColor(song.artwork);
     }
   },
 
-  /* Extract & apply color to fullscreen player */
+  /* Extract & apply color to fullscreen */
   async applyAdaptiveColor(artworkUrl) {
     try {
       const color = await API.extractColor(artworkUrl);
       if (color) {
         document.documentElement.style.setProperty('--dynamic-color', color);
-        // Apply tint to fullscreen background
         const fsBg = document.querySelector('.fs-bg');
         if (fsBg) {
           fsBg.classList.add('color-tint');
@@ -214,6 +220,9 @@ const UI = {
     });
   },
 
+  /* ═══════════════════════════════════════════════════════
+     PLAY STATE + Vinyl spin trigger
+  ═══════════════════════════════════════════════════════ */
   setPlayState(playing) {
     document.querySelectorAll(".play-btn").forEach(btn => {
       btn.innerHTML = '<i class="fas ' + (playing ? "fa-pause" : "fa-play") + '"></i>';
@@ -221,6 +230,12 @@ const UI = {
     });
     const viz = document.querySelector(".mini-visualizer");
     if (viz) viz.style.display = playing ? "flex" : "none";
+
+    // ✅ Vinyl spin toggle on fullscreen art
+    const fsArt = document.querySelector(".fs-art");
+    if (fsArt) {
+      fsArt.classList.toggle("spinning", playing);
+    }
   },
 
   updateVolumeUI(pct) {
@@ -277,20 +292,19 @@ const UI = {
     if (songs) songs.forEach(s => UI._registerSong(s));
     this._registerSong(song);
 
-    // ✅ Pass song ID directly to avoid context bugs
     return (
       '<div class="card stagger-item" ' +
       'onclick="Player.playFromRegistry(\'' + song.id + '\')" ' +
       'oncontextmenu="ContextMenu.openForSong(event, \'' + song.id + '\')" ' +
       'data-id="' + song.id + '">' +
         '<div class="card-thumb">' +
-(song.artwork
-  ? '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
-    '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)>🎵</div>\'" loading="lazy">'
-  : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
-(song.explicit ? '<div class="card-badge">E</div>' : "") +
-(State.liked.has(song.id) ? '<div class="liked-star"><i class="fas fa-heart"></i></div>' : "") +
-'</div>' +
+        (song.artwork
+          ? '<img src="' + song.artwork + '" alt="' + this.escHtml(song.title) +
+            '" onerror="this.onerror=null;this.parentElement.innerHTML=\'<div style=width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)>🎵</div>\'" loading="lazy">'
+          : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg-elevated)">🎵</div>') +
+        (song.explicit ? '<div class="card-badge">E</div>' : "") +
+        (State.liked.has(song.id) ? '<div class="liked-star"><i class="fas fa-heart"></i></div>' : "") +
+        '</div>' +
         '<div class="card-title">' + this.escHtml(song.title) + '</div>' +
         '<div class="card-sub" onclick="event.stopPropagation(); ArtistPage.open(\'' + this.escHtml(song.artist).replace(/'/g, "\\'") + '\')" style="cursor:pointer;" title="View artist">' + this.escHtml(song.artist) + "</div>" +
         '<button class="card-play" onclick="event.stopPropagation(); Player.playFromRegistry(\'' + song.id + '\')">' +
@@ -359,16 +373,14 @@ const UI = {
     );
   },
 
-    refreshSongHeart(songId) {
+  refreshSongHeart(songId) {
     const liked = State.liked.has(songId);
 
-    // Update song row hearts
     document.querySelectorAll('[data-id="' + songId + '"] .song-heart').forEach(el => {
       el.classList.toggle("liked", liked);
       el.innerHTML = '<i class="' + (liked ? "fas" : "far") + ' fa-heart"></i>';
     });
 
-    // ✅ Update liked star on cards
     document.querySelectorAll('.card[data-id="' + songId + '"] .card-thumb').forEach(thumb => {
       let star = thumb.querySelector('.liked-star');
       if (liked && !star) {
@@ -381,7 +393,6 @@ const UI = {
       }
     });
 
-    // ✅ Update player + fullscreen art star (if current song)
     if (State.currentSong && State.currentSong.id === songId) {
       this.updateLikeBtn(liked);
 
@@ -473,8 +484,8 @@ const UI = {
 
     const liked     = [...State.liked];
     const playlists = State.playlists;
-     const hasStats = Object.keys(State.songPlayCounts).length > 0;
-    const hasLiked = State.liked.size > 0;
+    const hasStats  = Object.keys(State.songPlayCounts).length > 0;
+    const hasLiked  = State.liked.size > 0;
 
     let html =
       '<div class="section-header">' +
@@ -486,7 +497,8 @@ const UI = {
           '<i class="fas fa-plus"></i> New Playlist' +
         '</button>' +
       '</div>';
-     if (hasStats || hasLiked) {
+
+    if (hasStats || hasLiked) {
       html +=
         '<div class="section-header" style="margin-top:24px;">' +
           '<div><div class="section-title" style="font-size:18px;">✨ Smart Playlists</div></div>' +
@@ -527,7 +539,7 @@ const UI = {
 
       html += '</div>';
     }
-// Playlists section
+
     if (playlists.length > 0) {
       html +=
         '<div class="section-header" style="margin-top:24px;">' +
@@ -716,7 +728,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     LISTENING STATS RENDER
+     LISTENING STATS
   ═══════════════════════════════════════════════════════ */
   renderStats() {
     const container = document.getElementById("stats-content");
@@ -840,7 +852,7 @@ const UI = {
   },
 
   /* ═══════════════════════════════════════════════════════
-     FULLSCREEN PLAYER (with mini player hide)
+     FULLSCREEN PLAYER
   ═══════════════════════════════════════════════════════ */
   openFullscreen() {
     const el = document.getElementById("fullscreen-player");
@@ -861,7 +873,6 @@ const UI = {
     this.closeFsQueue();
   },
 
-  /* Fullscreen Lyrics */
   openFsLyrics() {
     const fs = document.getElementById("fullscreen-player");
     if (fs && !fs.classList.contains("open")) this.openFullscreen();
@@ -891,7 +902,6 @@ const UI = {
     if (panel) panel.classList.add("hidden");
   },
 
-  /* Fullscreen Queue */
   openFsQueue() {
     const fs = document.getElementById("fullscreen-player");
     if (fs && !fs.classList.contains("open")) this.openFullscreen();
@@ -947,3 +957,12 @@ const UI = {
     });
   },
 };
+
+/* ═══════════════════════════════════════════════════════
+   INITIAL STATE — Hide mini player until song plays
+═══════════════════════════════════════════════════════ */
+document.addEventListener("DOMContentLoaded", () => {
+  if (!State.currentSong) {
+    document.body.classList.add("no-song");
+  }
+});
